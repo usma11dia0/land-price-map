@@ -4,13 +4,15 @@
  */
 
 import type { SearchResult } from './types.js';
-import { getUsageData, getUsageLimit, resetUsageData } from './storage.js';
+import { getUsageData, getUsageLimit } from './storage.js';
+import { getCurrentMarkerPosition } from './map.js';
 
 /** DOM要素 */
 let settingsModal: HTMLElement;
 let usageCurrentEl: HTMLElement;
 let usageLimitEl: HTMLElement;
 let usageRemainingEl: HTMLElement;
+let usageTotalEl: HTMLElement;
 let usageBarFill: HTMLElement;
 let searchResultsEl: HTMLElement;
 
@@ -25,6 +27,7 @@ export function initUI(): void {
   usageCurrentEl = document.getElementById('usage-current')!;
   usageLimitEl = document.getElementById('usage-limit')!;
   usageRemainingEl = document.getElementById('usage-remaining')!;
+  usageTotalEl = document.getElementById('usage-total')!;
   usageBarFill = document.getElementById('usage-bar-fill')!;
   searchResultsEl = document.getElementById('search-results')!;
 
@@ -32,7 +35,6 @@ export function initUI(): void {
   window.hideResults = hideSearchResults;
   window.selectResultByIndex = selectResultByIndex;
   window.closeSettingsModal = closeSettingsModal;
-  window.resetUsage = resetUsage;
 }
 
 /**
@@ -62,6 +64,7 @@ export function updateUsageDisplay(): void {
   usageCurrentEl.textContent = String(data.count);
   usageLimitEl.textContent = String(limit);
   usageRemainingEl.textContent = String(remaining);
+  usageTotalEl.textContent = String(data.totalCount || 0);
 
   usageBarFill.style.width = Math.min(percentage, 100) + '%';
 
@@ -75,16 +78,6 @@ export function updateUsageDisplay(): void {
   } else if (percentage >= 70) {
     usageRemainingEl.classList.add('warning');
     usageBarFill.classList.add('warning');
-  }
-}
-
-/**
- * 使用量をリセット
- */
-export function resetUsage(): void {
-  if (confirm('使用量をリセットしますか？')) {
-    resetUsageData();
-    updateUsageDisplay();
   }
 }
 
@@ -184,4 +177,66 @@ export function setupModalEventListeners(): void {
       closeSettingsModal();
     }
   });
+}
+
+/**
+ * 外部リンクボタンのイベントリスナーを設定
+ */
+export function setupExternalLinkButtons(): void {
+  const btnChikamap = document.getElementById('btn-chikamap')!;
+  const btnGoogleMaps = document.getElementById('btn-google-maps')!;
+
+  // 固定資産税路線価（全国地価マップ）
+  btnChikamap.addEventListener('click', () => {
+    openExternalLink('chikamap');
+  });
+
+  // Googleマップ
+  btnGoogleMaps.addEventListener('click', () => {
+    openExternalLink('google-maps');
+  });
+}
+
+/**
+ * WGS84座標を日本測地系（Tokyo Datum）に変換
+ * 全国地価マップは日本測地系を使用している可能性があるため
+ * @param lat WGS84緯度
+ * @param lon WGS84経度
+ * @returns 日本測地系の座標
+ */
+function convertWGS84ToTokyo(lat: number, lon: number): { lat: number; lon: number } {
+  // 国土地理院の簡易変換式（逆変換）
+  // 参考: https://www.gsi.go.jp/LAW/G2000-g2000faq-1.htm
+  const latTokyo = lat + lat * 0.00010695 - lon * 0.000017464 - 0.0046017;
+  const lonTokyo = lon + lat * 0.000046038 + lon * 0.000083043 - 0.010040;
+  return { lat: latTokyo, lon: lonTokyo };
+}
+
+/**
+ * 外部サイトを新しいタブで開く
+ * @param site サイト識別子
+ */
+function openExternalLink(site: 'chikamap' | 'google-maps'): void {
+  const position = getCurrentMarkerPosition();
+  let url: string;
+
+  switch (site) {
+    case 'chikamap':
+      // 全国地価マップ（固定資産税路線価）
+      // mid=325: 固定資産税路線価, mpx: 経度, mpy: 緯度, mps: スケール（大きいほどズームイン）
+      // 全国地価マップは日本測地系を使用している可能性があるため変換を適用
+      const tokyoCoord = convertWGS84ToTokyo(position.lat, position.lon);
+      url = `https://www.chikamap.jp/chikamap/Map?mid=325&mpx=${tokyoCoord.lon.toFixed(6)}&mpy=${tokyoCoord.lat.toFixed(6)}&mps=1000`;
+      break;
+
+    case 'google-maps':
+      // Googleマップ（query形式でピンを表示）
+      url = `https://www.google.com/maps?q=${position.lat.toFixed(6)},${position.lon.toFixed(6)}`;
+      break;
+
+    default:
+      return;
+  }
+
+  window.open(url, '_blank', 'noopener,noreferrer');
 }

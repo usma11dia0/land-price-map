@@ -21,10 +21,12 @@ export interface SearchResult {
  * API使用量データ
  */
 export interface UsageData {
-  /** 使用回数 */
+  /** 今月の使用回数 */
   count: number;
   /** 記録月（年月文字列 例: "2025-01"） */
   date: string;
+  /** 累計使用回数（全期間） */
+  totalCount?: number;
 }
 
 /**
@@ -120,7 +122,5 @@ declare global {
     selectResultByIndex?: (index: number) => void;
     /** 設定モーダルを閉じる関数 */
     closeSettingsModal?: () => void;
-    /** 使用量をリセットする関数 */
-    resetUsage?: () => void;
   }
 }

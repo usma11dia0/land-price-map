@@ -5,7 +5,7 @@
 
 import { initMap } from './map.js';
 import { initSearch } from './search.js';
-import { initUI, setupModalEventListeners } from './ui.js';
+import { initUI, setupModalEventListeners, setupExternalLinkButtons } from './ui.js';
 
 /**
  * アプリケーションを初期化
@@ -21,6 +21,9 @@ function initApp(): void {
 
   // モーダルのイベントリスナーを設定
   setupModalEventListeners();
+
+  // 外部リンクボタンのイベントリスナーを設定
+  setupExternalLinkButtons();
 
   // 検索機能を初期化
   initSearch();

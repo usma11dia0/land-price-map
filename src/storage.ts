@@ -22,21 +22,32 @@ function getCurrentMonth(): string {
 
 /**
  * API使用量データを取得
- * 月が変わっていた場合は自動的にリセット
+ * 月が変わっていた場合は今月の使用回数を自動的にリセット（累計は保持）
  * @returns 使用量データ
  */
 export function getUsageData(): UsageData {
   const data = localStorage.getItem(STORAGE_KEY);
 
   if (!data) {
-    return { count: 0, date: getCurrentMonth() };
+    return { count: 0, date: getCurrentMonth(), totalCount: 0 };
   }
 
   const parsed: UsageData = JSON.parse(data);
 
-  // 月が変わっていたらリセット
+  // 月が変わっていたら今月分をリセット（累計は保持）
   if (parsed.date !== getCurrentMonth()) {
-    return { count: 0, date: getCurrentMonth() };
+    const newData: UsageData = {
+      count: 0,
+      date: getCurrentMonth(),
+      totalCount: parsed.totalCount || 0,
+    };
+    saveUsageData(newData);
+    return newData;
+  }
+
+  // 累計がない古いデータの場合は初期化
+  if (parsed.totalCount === undefined) {
+    parsed.totalCount = parsed.count;
   }
 
   return parsed;
@@ -57,6 +68,7 @@ export function saveUsageData(data: UsageData): void {
 export function incrementUsage(): number {
   const data = getUsageData();
   data.count++;
+  data.totalCount = (data.totalCount || 0) + 1;
   data.date = getCurrentMonth();
   saveUsageData(data);
   return data.count;

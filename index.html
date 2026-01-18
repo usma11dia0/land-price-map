@@ -13,11 +13,29 @@
 </head>
 <body>
     <div id="header">
-        <h1>地価情報マップ</h1>
-        <div id="search-container">
-            <input type="text" id="search-input" placeholder="住所を入力（例：東京都千代田区丸の内1丁目）">
-            <button id="search-button">検索</button>
-            <button id="settings-button" title="設定">&#9881;</button>
+        <div id="header-left">
+            <h1>地価情報マップ</h1>
+        </div>
+        <div id="search-area">
+            <div id="external-links">
+                <button id="btn-chikamap" class="external-link-btn" title="固定資産税路線価（全国地価マップ）">
+                    <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M4 15h16v2H4v-2zm0-8h16v2H4V7zm2 4h12v2H6v-2z"/>
+                    </svg>
+                    <span class="btn-text">路線価</span>
+                </button>
+                <button id="btn-google-maps" class="external-link-btn" title="Googleマップ">
+                    <svg class="btn-icon-svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                    </svg>
+                    <span class="btn-text">Googleマップ</span>
+                </button>
+            </div>
+            <div id="search-container">
+                <input type="text" id="search-input" placeholder="住所を入力（例：東京都千代田区丸の内1丁目）">
+                <button id="search-button">検索</button>
+                <button id="settings-button" title="API使用状況">&#9432;</button>
+            </div>
         </div>
     </div>
     <div id="search-results"></div>
@@ -32,14 +50,14 @@
             </div>
             <div class="modal-body">
                 <div class="usage-section">
-                    <h3>API使用状況</h3>
+                    <h3>API使用状況（Google Geocoding API）</h3>
                     <div class="usage-stats">
                         <div class="usage-row">
-                            <span class="usage-label">現在の使用回数</span>
+                            <span class="usage-label">今月の使用回数</span>
                             <span id="usage-current" class="usage-value">0</span>
                         </div>
                         <div class="usage-row">
-                            <span class="usage-label">上限</span>
+                            <span class="usage-label">月間上限</span>
                             <span id="usage-limit" class="usage-value">100</span>
                         </div>
                         <div class="usage-row">
@@ -49,9 +67,16 @@
                         <div class="usage-bar">
                             <div id="usage-bar-fill" class="usage-bar-fill" style="width: 0%"></div>
                         </div>
+                        <div class="usage-row usage-total">
+                            <span class="usage-label">累計使用回数</span>
+                            <span id="usage-total" class="usage-value">0</span>
+                        </div>
                     </div>
-                    <button class="reset-button" onclick="resetUsage()">使用量をリセット</button>
-                    <p class="reset-note">※ テスト用機能です</p>
+                    <p class="usage-note">※ 使用回数は毎月1日に自動リセットされます</p>
+                    <div class="usage-limit-info">
+                        <p><strong>上限到達時の動作：</strong></p>
+                        <p>番地レベルの精度（Google Geocoding API）での検索ができなくなります。国土地理院の住所検索（町丁目レベル）は引き続き利用可能です。</p>
+                    </div>
                 </div>
             </div>
         </div>

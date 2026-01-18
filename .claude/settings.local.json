@@ -12,7 +12,9 @@
       "Bash(npx http-server:*)",
       "Bash(npm install)",
       "Bash(npm run build:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "WebFetch(domain:www.chikamap.jp)",
+      "WebFetch(domain:www.rosenka.nta.go.jp)"
     ]
   }
 }

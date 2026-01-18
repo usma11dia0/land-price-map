@@ -32,8 +32,17 @@ const SEARCH_ZOOM = 17;
  * @returns 地図インスタンス
  */
 export function initMap(containerId: string): L.Map {
-  // 地図を初期化（東京駅を中心にズームレベル15で表示）
-  map = L.map(containerId).setView([DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lon], DEFAULT_ZOOM);
+  // 地図を初期化（デフォルトのズームコントロールを無効化）
+  map = L.map(containerId, {
+    zoomControl: false,
+  }).setView([DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lon], DEFAULT_ZOOM);
+
+  // 右下にズームコントロールを追加
+  L.control
+    .zoom({
+      position: 'bottomright',
+    })
+    .addTo(map);
 
   // OpenStreetMapのタイルレイヤーを追加
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -80,4 +89,35 @@ export function moveToSearchResult(result: SearchResult): void {
  */
 export function onMapClick(callback: () => void): void {
   map.on('click', callback);
+}
+
+/**
+ * 現在のマーカー位置を取得
+ * マーカーがない場合は地図の中心座標を返す
+ * @returns 座標（緯度・経度）
+ */
+export function getCurrentMarkerPosition(): Coordinates {
+  if (searchMarker) {
+    const latLng = searchMarker.getLatLng();
+    return { lat: latLng.lat, lon: latLng.lng };
+  }
+  // マーカーがない場合は地図の中心座標を返す
+  return getMapCenter();
+}
+
+/**
+ * 地図の中心座標を取得
+ * @returns 座標（緯度・経度）
+ */
+export function getMapCenter(): Coordinates {
+  const center = map.getCenter();
+  return { lat: center.lat, lon: center.lng };
+}
+
+/**
+ * 現在のズームレベルを取得
+ * @returns ズームレベル
+ */
+export function getMapZoom(): number {
+  return map.getZoom();
 }

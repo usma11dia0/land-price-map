@@ -13,7 +13,20 @@ import { CONFIG } from './config.js';
 import { canUseApi, incrementUsage } from './storage.js';
 
 /**
+ * 本番環境かどうかを判定
+ * @returns 本番環境の場合はtrue
+ */
+function isProduction(): boolean {
+  return (
+    window.location.hostname !== 'localhost' &&
+    window.location.hostname !== '127.0.0.1'
+  );
+}
+
+/**
  * Google Geocoding APIで住所検索
+ * 本番環境: Vercel Serverless Function経由（APIキー保護）
+ * 開発環境: 直接Google API呼び出し
  * @param address 検索する住所
  * @returns 検索結果の配列
  * @throws APIエラー時（OVER_QUERY_LIMIT等）はエラーをスロー
@@ -25,13 +38,20 @@ export async function searchWithGoogle(address: string): Promise<SearchResult[]>
     throw new Error('API_USAGE_LIMIT_EXCEEDED');
   }
 
-  const apiKey = CONFIG.GOOGLE_API_KEY;
-  if (!apiKey || apiKey === 'YOUR_GOOGLE_API_KEY_HERE') {
-    console.warn('Google APIキーが設定されていません。国土地理院APIにフォールバックします。');
-    throw new Error('API_KEY_NOT_CONFIGURED');
-  }
+  let url: string;
 
-  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}&language=ja&region=jp`;
+  if (isProduction()) {
+    // 本番環境: Vercel Serverless Function経由
+    url = `/api/geocode?address=${encodeURIComponent(address)}`;
+  } else {
+    // 開発環境: 直接Google API呼び出し
+    const apiKey = CONFIG.GOOGLE_API_KEY;
+    if (!apiKey || apiKey === 'YOUR_GOOGLE_API_KEY_HERE') {
+      console.warn('Google APIキーが設定されていません。国土地理院APIにフォールバックします。');
+      throw new Error('API_KEY_NOT_CONFIGURED');
+    }
+    url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}&language=ja&region=jp`;
+  }
 
   const response = await fetch(url);
   const data: GoogleGeocodingResponse = await response.json();

@@ -26,9 +26,23 @@ body {
   justify-content: space-between;
 }
 
+#header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 #header h1 {
   font-size: 18px;
   font-weight: bold;
+  white-space: nowrap;
+}
+
+/* ===== 検索エリア（外部リンク + 検索コンテナ） ===== */
+#search-area {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 /* ===== 検索コンテナ ===== */
@@ -68,11 +82,59 @@ body {
   cursor: not-allowed;
 }
 
-/* ===== 設定ボタン ===== */
+/* ===== 外部リンクボタン ===== */
+#external-links {
+  display: flex;
+  gap: 8px;
+  padding-right: 16px;
+  border-right: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.external-link-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  font-size: 13px;
+  color: white;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 4px;
+  transition: background-color 0.2s, transform 0.1s;
+  white-space: nowrap;
+}
+
+.external-link-btn .btn-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.external-link-btn .btn-icon-svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.external-link-btn .btn-text {
+  font-weight: 500;
+}
+
+.external-link-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.02);
+}
+
+.external-link-btn:active {
+  transform: scale(0.98);
+}
+
+/* ===== 情報ボタン ===== */
 #settings-button {
   background: none;
   border: none;
   font-size: 22px;
+  color: white;
   cursor: pointer;
   padding: 4px 8px;
   margin-left: 12px;
@@ -82,6 +144,52 @@ body {
 
 #settings-button:hover {
   opacity: 1;
+}
+
+/* ===== レスポンシブ対応 ===== */
+@media (max-width: 768px) {
+  #header {
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  #header-left {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  #search-area {
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+  }
+
+  #search-container {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  #search-input {
+    width: 100%;
+    max-width: 300px;
+  }
+
+  #external-links {
+    padding-right: 0;
+    border-right: none;
+    justify-content: center;
+  }
+
+  .external-link-btn {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  .external-link-btn .btn-icon {
+    font-size: 14px;
+  }
 }
 
 /* ===== 地図 ===== */
@@ -292,26 +400,34 @@ body {
   background: #e74c3c;
 }
 
-/* ===== リセットボタン ===== */
-.reset-button {
-  width: 100%;
-  padding: 12px;
-  background: #e74c3c;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  cursor: pointer;
-  margin-top: 16px;
+/* ===== 累計表示 ===== */
+.usage-total {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #dee2e6;
 }
 
-.reset-button:hover {
-  background: #c0392b;
-}
-
-.reset-note {
+/* ===== 使用量の説明 ===== */
+.usage-note {
   font-size: 12px;
   color: #6c757d;
-  margin-top: 8px;
+  margin-top: 12px;
   text-align: center;
+}
+
+.usage-limit-info {
+  margin-top: 16px;
+  padding: 12px;
+  background: #fff3cd;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #856404;
+}
+
+.usage-limit-info p {
+  margin: 0;
+}
+
+.usage-limit-info p + p {
+  margin-top: 6px;
 }
