@@ -6,7 +6,13 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: 初期セットアップ - README.mdと地図表示のindex.html\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git remote add:*)",
       "Bash(git push:*)",
-      "Bash(start index.html)"
+      "Bash(start index.html)",
+      "Bash(python:*)",
+      "Bash(curl:*)",
+      "Bash(npx http-server:*)",
+      "Bash(npm install)",
+      "Bash(npm run build:*)",
+      "Bash(npm run dev:*)"
     ]
   }
 }

@@ -1,0 +1,24 @@
+{
+  "name": "land-price-map",
+  "version": "1.0.0",
+  "description": "地価情報マップ - 日本の地価情報を地図上で確認できるWebアプリケーション",
+  "main": "dist/app.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "dev": "npx http-server -p 8080 -o",
+    "start": "npm run build && npm run dev"
+  },
+  "keywords": [
+    "land-price",
+    "map",
+    "leaflet",
+    "typescript"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/leaflet": "^1.9.8",
+    "typescript": "^5.3.3"
+  }
+}
