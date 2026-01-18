@@ -9,12 +9,22 @@ import { getCurrentMarkerPosition } from './map.js';
 
 /** DOM要素 */
 let settingsModal: HTMLElement;
+let streetViewModal: HTMLElement;
+let streetViewImage: HTMLImageElement;
+let streetViewLoading: HTMLElement;
+let streetViewError: HTMLElement;
+let streetViewHeading: HTMLInputElement;
+let streetViewHeadingValue: HTMLElement;
 let usageCurrentEl: HTMLElement;
 let usageLimitEl: HTMLElement;
 let usageRemainingEl: HTMLElement;
 let usageTotalEl: HTMLElement;
 let usageBarFill: HTMLElement;
 let searchResultsEl: HTMLElement;
+
+/** 現在のStreet View座標 */
+let currentStreetViewLat: number = 0;
+let currentStreetViewLon: number = 0;
 
 /** 結果選択時のコールバック */
 let onResultSelectCallback: ((result: SearchResult) => void) | null = null;
@@ -24,6 +34,12 @@ let onResultSelectCallback: ((result: SearchResult) => void) | null = null;
  */
 export function initUI(): void {
   settingsModal = document.getElementById('settings-modal')!;
+  streetViewModal = document.getElementById('streetview-modal')!;
+  streetViewImage = document.getElementById('streetview-image') as HTMLImageElement;
+  streetViewLoading = document.getElementById('streetview-loading')!;
+  streetViewError = document.getElementById('streetview-error')!;
+  streetViewHeading = document.getElementById('streetview-heading') as HTMLInputElement;
+  streetViewHeadingValue = document.getElementById('streetview-heading-value')!;
   usageCurrentEl = document.getElementById('usage-current')!;
   usageLimitEl = document.getElementById('usage-limit')!;
   usageRemainingEl = document.getElementById('usage-remaining')!;
@@ -35,6 +51,14 @@ export function initUI(): void {
   window.hideResults = hideSearchResults;
   window.selectResultByIndex = selectResultByIndex;
   window.closeSettingsModal = closeSettingsModal;
+  window.closeStreetViewModal = closeStreetViewModal;
+
+  // Street View方角スライダーのイベント
+  streetViewHeading.addEventListener('input', () => {
+    const heading = streetViewHeading.value;
+    streetViewHeadingValue.textContent = `${heading}°`;
+    updateStreetViewImage(Number(heading));
+  });
 }
 
 /**
@@ -50,6 +74,106 @@ export function openSettingsModal(): void {
  */
 export function closeSettingsModal(): void {
   settingsModal.classList.remove('show');
+}
+
+/**
+ * ストリートビューモーダルを開く
+ */
+export function openStreetViewModal(): void {
+  const position = getCurrentMarkerPosition();
+  currentStreetViewLat = position.lat;
+  currentStreetViewLon = position.lon;
+
+  // 初期状態をリセット
+  streetViewHeading.value = '0';
+  streetViewHeadingValue.textContent = '0°';
+  streetViewImage.style.display = 'none';
+  streetViewError.style.display = 'none';
+  streetViewLoading.style.display = 'block';
+
+  streetViewModal.classList.add('show');
+
+  // Street View画像を取得
+  loadStreetViewImage(0);
+}
+
+/**
+ * ストリートビューモーダルを閉じる
+ */
+export function closeStreetViewModal(): void {
+  streetViewModal.classList.remove('show');
+}
+
+/**
+ * Street View画像を読み込む
+ * @param heading 方角（0-360）
+ */
+async function loadStreetViewImage(heading: number): Promise<void> {
+  const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+  
+  try {
+    if (isProduction) {
+      // 本番環境: Vercel Serverless Functionを使用
+      // まずメタデータをチェック
+      const metadataUrl = `/api/streetview-metadata?lat=${currentStreetViewLat}&lon=${currentStreetViewLon}`;
+      const metadataResponse = await fetch(metadataUrl);
+      const metadata = await metadataResponse.json();
+
+      if (metadata.status !== 'OK') {
+        // Street Viewが利用できない
+        streetViewLoading.style.display = 'none';
+        streetViewImage.style.display = 'none';
+        streetViewError.style.display = 'block';
+        return;
+      }
+
+      // 画像を取得
+      const imageUrl = `/api/streetview?lat=${currentStreetViewLat}&lon=${currentStreetViewLon}&heading=${heading}`;
+      streetViewImage.src = imageUrl;
+    } else {
+      // 開発環境: 直接Google APIを使用（API keyがconfig.tsにある場合）
+      // 開発時はメタデータチェックをスキップ
+      const { CONFIG } = await import('./config.js');
+      const imageUrl = `https://maps.googleapis.com/maps/api/streetview?size=600x400&location=${currentStreetViewLat},${currentStreetViewLon}&heading=${heading}&key=${CONFIG.GOOGLE_API_KEY}`;
+      streetViewImage.src = imageUrl;
+    }
+
+    // 画像読み込み完了時
+    streetViewImage.onload = () => {
+      streetViewLoading.style.display = 'none';
+      streetViewError.style.display = 'none';
+      streetViewImage.style.display = 'block';
+    };
+
+    // 画像読み込みエラー時
+    streetViewImage.onerror = () => {
+      streetViewLoading.style.display = 'none';
+      streetViewImage.style.display = 'none';
+      streetViewError.style.display = 'block';
+    };
+  } catch (error) {
+    console.error('Street View error:', error);
+    streetViewLoading.style.display = 'none';
+    streetViewImage.style.display = 'none';
+    streetViewError.style.display = 'block';
+  }
+}
+
+/**
+ * Street View画像を更新（方角変更時）
+ * @param heading 方角（0-360）
+ */
+function updateStreetViewImage(heading: number): void {
+  // デバウンス処理のため、少し遅延させて画像を更新
+  const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+  
+  if (isProduction) {
+    streetViewImage.src = `/api/streetview?lat=${currentStreetViewLat}&lon=${currentStreetViewLon}&heading=${heading}`;
+  } else {
+    import('./config.js').then(({ CONFIG }) => {
+      streetViewImage.src = `https://maps.googleapis.com/maps/api/streetview?size=600x400&location=${currentStreetViewLat},${currentStreetViewLon}&heading=${heading}&key=${CONFIG.GOOGLE_API_KEY}`;
+    });
+  }
 }
 
 /**
@@ -166,17 +290,29 @@ export function setupModalEventListeners(): void {
   // 設定ボタンのクリックイベント
   settingsButton.addEventListener('click', openSettingsModal);
 
-  // モーダル背景クリックで閉じる
+  // 設定モーダル背景クリックで閉じる
   settingsModal.addEventListener('click', (e) => {
     if (e.target === settingsModal) {
       closeSettingsModal();
     }
   });
 
+  // ストリートビューモーダル背景クリックで閉じる
+  streetViewModal.addEventListener('click', (e) => {
+    if (e.target === streetViewModal) {
+      closeStreetViewModal();
+    }
+  });
+
   // ESCキーでモーダルを閉じる
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && settingsModal.classList.contains('show')) {
-      closeSettingsModal();
+    if (e.key === 'Escape') {
+      if (settingsModal.classList.contains('show')) {
+        closeSettingsModal();
+      }
+      if (streetViewModal.classList.contains('show')) {
+        closeStreetViewModal();
+      }
     }
   });
 }
@@ -187,6 +323,7 @@ export function setupModalEventListeners(): void {
 export function setupExternalLinkButtons(): void {
   const btnChikamap = document.getElementById('btn-chikamap')!;
   const btnGoogleMaps = document.getElementById('btn-google-maps')!;
+  const btnStreetView = document.getElementById('btn-street-view')!;
 
   // 固定資産税路線価（全国地価マップ）
   btnChikamap.addEventListener('click', () => {
@@ -196,6 +333,11 @@ export function setupExternalLinkButtons(): void {
   // Googleマップ
   btnGoogleMaps.addEventListener('click', () => {
     openExternalLink('google-maps');
+  });
+
+  // ストリートビュー
+  btnStreetView.addEventListener('click', () => {
+    openStreetViewModal();
   });
 }
 

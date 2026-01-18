@@ -151,5 +151,7 @@ declare global {
     selectResultByIndex?: (index: number) => void;
     /** 設定モーダルを閉じる関数 */
     closeSettingsModal?: () => void;
+    /** ストリートビューモーダルを閉じる関数 */
+    closeStreetViewModal?: () => void;
   }
 }
