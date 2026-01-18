@@ -13,6 +13,7 @@ let streetViewModal: HTMLElement;
 let streetViewImage: HTMLImageElement;
 let streetViewLoading: HTMLElement;
 let streetViewError: HTMLElement;
+let streetViewDate: HTMLElement;
 let streetViewHeading: HTMLInputElement;
 let streetViewHeadingValue: HTMLElement;
 let usageCurrentEl: HTMLElement;
@@ -38,6 +39,7 @@ export function initUI(): void {
   streetViewImage = document.getElementById('streetview-image') as HTMLImageElement;
   streetViewLoading = document.getElementById('streetview-loading')!;
   streetViewError = document.getElementById('streetview-error')!;
+  streetViewDate = document.getElementById('streetview-date')!;
   streetViewHeading = document.getElementById('streetview-heading') as HTMLInputElement;
   streetViewHeadingValue = document.getElementById('streetview-heading-value')!;
   usageCurrentEl = document.getElementById('usage-current')!;
@@ -90,6 +92,7 @@ export function openStreetViewModal(): void {
   streetViewHeadingValue.textContent = '0°';
   streetViewImage.style.display = 'none';
   streetViewError.style.display = 'none';
+  streetViewDate.style.display = 'none';
   streetViewLoading.style.display = 'block';
 
   streetViewModal.classList.add('show');
@@ -113,6 +116,8 @@ async function loadStreetViewImage(heading: number): Promise<void> {
   const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
   
   try {
+    let captureDate: string | null = null;
+
     if (isProduction) {
       // 本番環境: Vercel Serverless Functionを使用
       // まずメタデータをチェック
@@ -124,17 +129,40 @@ async function loadStreetViewImage(heading: number): Promise<void> {
         // Street Viewが利用できない
         streetViewLoading.style.display = 'none';
         streetViewImage.style.display = 'none';
+        streetViewDate.style.display = 'none';
         streetViewError.style.display = 'block';
         return;
+      }
+
+      // 撮影日を取得（例: "2023-05" → "2023年5月"）
+      if (metadata.date) {
+        captureDate = formatCaptureDate(metadata.date);
       }
 
       // 画像を取得
       const imageUrl = `/api/streetview?lat=${currentStreetViewLat}&lon=${currentStreetViewLon}&heading=${heading}`;
       streetViewImage.src = imageUrl;
     } else {
-      // 開発環境: 直接Google APIを使用（API keyがconfig.tsにある場合）
-      // 開発時はメタデータチェックをスキップ
+      // 開発環境: 直接Google APIを使用
       const { CONFIG } = await import('./config.js');
+      
+      // 開発環境でもメタデータを取得して撮影日を表示
+      const metadataUrl = `https://maps.googleapis.com/maps/api/streetview/metadata?location=${currentStreetViewLat},${currentStreetViewLon}&key=${CONFIG.GOOGLE_API_KEY}`;
+      const metadataResponse = await fetch(metadataUrl);
+      const metadata = await metadataResponse.json();
+      
+      if (metadata.status !== 'OK') {
+        streetViewLoading.style.display = 'none';
+        streetViewImage.style.display = 'none';
+        streetViewDate.style.display = 'none';
+        streetViewError.style.display = 'block';
+        return;
+      }
+
+      if (metadata.date) {
+        captureDate = formatCaptureDate(metadata.date);
+      }
+
       const imageUrl = `https://maps.googleapis.com/maps/api/streetview?size=600x400&location=${currentStreetViewLat},${currentStreetViewLon}&heading=${heading}&key=${CONFIG.GOOGLE_API_KEY}`;
       streetViewImage.src = imageUrl;
     }
@@ -144,20 +172,43 @@ async function loadStreetViewImage(heading: number): Promise<void> {
       streetViewLoading.style.display = 'none';
       streetViewError.style.display = 'none';
       streetViewImage.style.display = 'block';
+      
+      // 撮影日を表示
+      if (captureDate) {
+        streetViewDate.textContent = `📅 ${captureDate}`;
+        streetViewDate.style.display = 'block';
+      }
     };
 
     // 画像読み込みエラー時
     streetViewImage.onerror = () => {
       streetViewLoading.style.display = 'none';
       streetViewImage.style.display = 'none';
+      streetViewDate.style.display = 'none';
       streetViewError.style.display = 'block';
     };
   } catch (error) {
     console.error('Street View error:', error);
     streetViewLoading.style.display = 'none';
     streetViewImage.style.display = 'none';
+    streetViewDate.style.display = 'none';
     streetViewError.style.display = 'block';
   }
+}
+
+/**
+ * 撮影日をフォーマット（例: "2023-05" → "2023年5月撮影"）
+ * @param dateStr APIから返される日付文字列（YYYY-MM形式）
+ * @returns フォーマットされた日付文字列
+ */
+function formatCaptureDate(dateStr: string): string {
+  const parts = dateStr.split('-');
+  if (parts.length >= 2) {
+    const year = parts[0];
+    const month = parseInt(parts[1], 10);
+    return `${year}年${month}月撮影`;
+  }
+  return `${dateStr} 撮影`;
 }
 
 /**

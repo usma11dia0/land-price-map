@@ -455,6 +455,19 @@ body {
   display: block;
 }
 
+.streetview-date {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  display: none;
+}
+
 .streetview-loading {
   color: #aaa;
   font-size: 14px;
