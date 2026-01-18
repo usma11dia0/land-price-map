@@ -98,13 +98,15 @@ export function showSearchResults(
     return;
   }
 
-  if (results.length === 1) {
-    // 結果が1件の場合は直接選択
+  // 住所検索（Google Geocoding/国土地理院）で1件の場合は直接選択
+  // 施設検索（Google Places）の場合は1件でも候補リストを表示（位置確認のため）
+  const isPlacesResult = results.some((r) => r.source === 'Google Places');
+  if (results.length === 1 && !isPlacesResult) {
     onSelect(results[0]);
     return;
   }
 
-  // 複数の結果がある場合は一覧表示
+  // 結果を一覧表示（施設検索の場合は1件でも表示）
   let html = `
     <div class="result-header">
       <span>検索結果（${results.length}件）</span>

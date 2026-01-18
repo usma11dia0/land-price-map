@@ -3,9 +3,12 @@
  * アプリケーションの初期化を担当
  */
 
-import { initMap } from './map.js';
+import { initMap, moveMarkerTo } from './map.js';
 import { initSearch } from './search.js';
-import { initUI, setupModalEventListeners, setupExternalLinkButtons } from './ui.js';
+import { initUI, setupModalEventListeners, setupExternalLinkButtons, hideSearchResults } from './ui.js';
+
+/** Leaflet型の簡易定義 */
+declare const L: typeof import('leaflet');
 
 /**
  * アプリケーションを初期化
@@ -14,7 +17,7 @@ function initApp(): void {
   console.log('地価情報マップを初期化中...');
 
   // 地図を初期化
-  initMap('map');
+  const map = initMap('map');
 
   // UI要素を初期化
   initUI();
@@ -27,6 +30,12 @@ function initApp(): void {
 
   // 検索機能を初期化
   initSearch();
+
+  // 地図クリックでピンを移動
+  map.on('click', (e: L.LeafletMouseEvent) => {
+    moveMarkerTo(e.latlng.lat, e.latlng.lng);
+    hideSearchResults();
+  });
 
   console.log('初期化完了');
 }

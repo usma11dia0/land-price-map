@@ -50,9 +50,8 @@ export function initMap(containerId: string): L.Map {
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   }).addTo(map);
 
-  // 東京駅にマーカーを追加
-  searchMarker = L.marker([DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lon]).addTo(map);
-  searchMarker.bindPopup('<b>東京駅</b>').openPopup();
+  // 初期状態ではマーカーなし（検索後に表示）
+  searchMarker = null;
 
   return map;
 }
@@ -80,7 +79,23 @@ export function moveToSearchResult(result: SearchResult): void {
 
   // 新しいマーカーを追加
   searchMarker = L.marker([result.lat, result.lon]).addTo(map);
-  searchMarker.bindPopup(`<b>${result.name}</b><br><small>${result.source}</small>`).openPopup();
+  searchMarker.bindPopup(`<b>${result.name}</b><br><small>${result.source}</small><br><small class="marker-hint">※ 地図をクリックでピン移動</small>`).openPopup();
+}
+
+/**
+ * 指定した座標にマーカーを移動
+ * @param lat 緯度
+ * @param lon 経度
+ */
+export function moveMarkerTo(lat: number, lon: number): void {
+  // 既存のマーカーを削除
+  if (searchMarker) {
+    map.removeLayer(searchMarker);
+  }
+
+  // 新しいマーカーを追加
+  searchMarker = L.marker([lat, lon]).addTo(map);
+  searchMarker.bindPopup(`<b>選択した地点</b><br><small>クリックで設定</small>`).openPopup();
 }
 
 /**
