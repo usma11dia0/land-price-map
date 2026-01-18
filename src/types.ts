@@ -110,6 +110,35 @@ export interface Coordinates {
 }
 
 /**
+ * Google Places API (Text Search) のレスポンス
+ */
+export interface GooglePlacesResponse {
+  places?: GooglePlaceResult[];
+  error?: {
+    code: number;
+    message: string;
+    status: string;
+  };
+}
+
+/**
+ * Google Places APIの結果項目
+ */
+export interface GooglePlaceResult {
+  id: string;
+  displayName: {
+    text: string;
+    languageCode: string;
+  };
+  formattedAddress: string;
+  location: {
+    latitude: number;
+    longitude: number;
+  };
+  types?: string[];
+}
+
+/**
  * Leafletのグローバル型拡張
  */
 declare global {

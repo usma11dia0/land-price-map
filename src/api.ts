@@ -1,6 +1,6 @@
 /**
  * API呼び出しモジュール
- * Google Geocoding API、国土地理院API、Nominatim APIによる住所検索を担当
+ * Google Geocoding API、Places API、国土地理院API、Nominatim APIによる住所検索を担当
  */
 
 import type {
@@ -8,6 +8,7 @@ import type {
   GSISearchItem,
   NominatimSearchItem,
   GoogleGeocodingResponse,
+  GooglePlacesResponse,
 } from './types.js';
 import { CONFIG } from './config.js';
 import { canUseApi, incrementUsage } from './storage.js';
@@ -21,6 +22,33 @@ function isProduction(): boolean {
     window.location.hostname !== 'localhost' &&
     window.location.hostname !== '127.0.0.1'
   );
+}
+
+/**
+ * 検索クエリが住所かどうかを判定
+ * 住所の特徴: 都道府県名、市区町村、番地（数字-数字）を含む
+ * @param query 検索クエリ
+ * @returns 住所の場合はtrue
+ */
+function isAddressQuery(query: string): boolean {
+  // 都道府県名のパターン
+  const prefecturePattern = /(東京都|北海道|(?:京都|大阪)府|.{2,3}県)/;
+  // 市区町村のパターン
+  const cityPattern = /(.+?[市区町村郡])/;
+  // 番地のパターン（数字-数字、数字丁目など）
+  const addressNumberPattern = /(\d+[-−ー]\d+|\d+丁目|\d+番)/;
+  
+  // 都道府県または市区町村を含み、かつ番地パターンがある場合は住所と判定
+  if ((prefecturePattern.test(query) || cityPattern.test(query)) && addressNumberPattern.test(query)) {
+    return true;
+  }
+  
+  // 都道府県 + 市区町村の組み合わせがある場合も住所と判定
+  if (prefecturePattern.test(query) && cityPattern.test(query)) {
+    return true;
+  }
+  
+  return false;
 }
 
 /**
@@ -93,6 +121,74 @@ export async function searchWithGoogle(address: string): Promise<SearchResult[]>
 }
 
 /**
+ * Google Places API (Text Search) で施設名検索
+ * 本番環境: Vercel Serverless Function経由（APIキー保護）
+ * 開発環境: 直接Google API呼び出し
+ * @param query 検索する施設名
+ * @returns 検索結果の配列
+ */
+export async function searchWithPlaces(query: string): Promise<SearchResult[]> {
+  // API使用量をチェック（Geocodingと共有）
+  if (!canUseApi()) {
+    console.warn('API使用量が上限に達しています。国土地理院APIにフォールバックします。');
+    throw new Error('API_USAGE_LIMIT_EXCEEDED');
+  }
+
+  let data: GooglePlacesResponse;
+
+  if (isProduction()) {
+    // 本番環境: Vercel Serverless Function経由
+    const url = `/api/places?query=${encodeURIComponent(query)}`;
+    const response = await fetch(url);
+    data = await response.json();
+  } else {
+    // 開発環境: 直接Google API呼び出し
+    const apiKey = CONFIG.GOOGLE_API_KEY;
+    if (!apiKey || apiKey === 'YOUR_GOOGLE_API_KEY_HERE') {
+      console.warn('Google APIキーが設定されていません。国土地理院APIにフォールバックします。');
+      throw new Error('API_KEY_NOT_CONFIGURED');
+    }
+
+    const url = 'https://places.googleapis.com/v1/places:searchText';
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.types',
+      },
+      body: JSON.stringify({
+        textQuery: query,
+        languageCode: 'ja',
+        regionCode: 'JP',
+        maxResultCount: 5,
+      }),
+    });
+    data = await response.json();
+  }
+
+  // エラーチェック
+  if (data.error) {
+    console.error('Places APIエラー:', data.error.message);
+    throw new Error(data.error.status || 'PLACES_API_ERROR');
+  }
+
+  if (!data.places || data.places.length === 0) {
+    return [];
+  }
+
+  // 成功時のみ使用量をインクリメント
+  incrementUsage();
+
+  return data.places.map((place) => ({
+    name: `${place.displayName.text} (${place.formattedAddress})`,
+    lat: place.location.latitude,
+    lon: place.location.longitude,
+    source: 'Google Places',
+  }));
+}
+
+/**
  * 国土地理院APIで住所検索
  * @param address 検索する住所
  * @returns 検索結果の配列
@@ -143,16 +239,36 @@ export async function searchWithNominatim(address: string): Promise<SearchResult
 }
 
 /**
- * 住所を検索
- * 優先順位: Google Geocoding API > 国土地理院API > Nominatim API
- * @param address 検索する住所
+ * 住所または施設名を検索
+ * 住所の場合: Google Geocoding API > 国土地理院API > Nominatim API
+ * 施設名の場合: Google Places API > Google Geocoding API > 国土地理院API
+ * @param query 検索するクエリ（住所または施設名）
  * @returns 検索結果の配列
  */
-export async function searchAddress(address: string): Promise<SearchResult[]> {
-  // 1. まずGoogle Geocoding APIで検索
+export async function searchAddress(query: string): Promise<SearchResult[]> {
+  const isAddress = isAddressQuery(query);
+  console.log(`検索クエリ "${query}" は${isAddress ? '住所' : '施設名'}として判定`);
+
+  // 施設名の場合: まずPlaces APIで検索
+  if (!isAddress) {
+    try {
+      console.log('Google Places APIで検索中...');
+      const placesResults = await searchWithPlaces(query);
+      if (placesResults.length > 0) {
+        console.log('Google Places APIの結果:', placesResults.length, '件');
+        return placesResults;
+      }
+      console.log('Google Places API: 結果なし');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.log('Google Places APIエラー:', errorMessage, '- Geocoding APIにフォールバック');
+    }
+  }
+
+  // 住所の場合、またはPlaces APIで結果がない場合: Geocoding APIで検索
   try {
     console.log('Google Geocoding APIで検索中...');
-    const googleResults = await searchWithGoogle(address);
+    const googleResults = await searchWithGoogle(query);
     if (googleResults.length > 0) {
       console.log('Google Geocoding APIの結果:', googleResults.length, '件');
       return googleResults;
@@ -163,10 +279,10 @@ export async function searchAddress(address: string): Promise<SearchResult[]> {
     console.log('Google Geocoding APIエラー:', errorMessage, '- フォールバックします');
   }
 
-  // 2. 国土地理院APIで検索
+  // 国土地理院APIで検索
   try {
     console.log('国土地理院APIで検索中...');
-    const gsiResults = await searchWithGSI(address);
+    const gsiResults = await searchWithGSI(query);
     if (gsiResults.length > 0) {
       console.log('国土地理院APIの結果:', gsiResults.length, '件');
       return gsiResults;
@@ -176,10 +292,10 @@ export async function searchAddress(address: string): Promise<SearchResult[]> {
     console.log('国土地理院APIエラー - Nominatimにフォールバックします');
   }
 
-  // 3. 最終手段: Nominatim APIで検索
+  // 最終手段: Nominatim APIで検索
   try {
     console.log('Nominatim APIで検索中...');
-    const nominatimResults = await searchWithNominatim(address);
+    const nominatimResults = await searchWithNominatim(query);
     console.log('Nominatim APIの結果:', nominatimResults.length, '件');
     return nominatimResults;
   } catch (error) {
