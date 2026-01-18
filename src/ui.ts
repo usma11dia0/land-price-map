@@ -52,6 +52,7 @@ export function initUI(): void {
   window.selectResultByIndex = selectResultByIndex;
   window.closeSettingsModal = closeSettingsModal;
   window.closeStreetViewModal = closeStreetViewModal;
+  window.openStreetViewFromPopup = openStreetViewModal;
 
   // Street View方角スライダーのイベント
   streetViewHeading.addEventListener('input', () => {
@@ -323,7 +324,6 @@ export function setupModalEventListeners(): void {
 export function setupExternalLinkButtons(): void {
   const btnChikamap = document.getElementById('btn-chikamap')!;
   const btnGoogleMaps = document.getElementById('btn-google-maps')!;
-  const btnStreetView = document.getElementById('btn-street-view')!;
 
   // 固定資産税路線価（全国地価マップ）
   btnChikamap.addEventListener('click', () => {
@@ -333,11 +333,6 @@ export function setupExternalLinkButtons(): void {
   // Googleマップ
   btnGoogleMaps.addEventListener('click', () => {
     openExternalLink('google-maps');
-  });
-
-  // ストリートビュー
-  btnStreetView.addEventListener('click', () => {
-    openStreetViewModal();
   });
 }
 

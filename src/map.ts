@@ -79,7 +79,17 @@ export function moveToSearchResult(result: SearchResult): void {
 
   // 新しいマーカーを追加
   searchMarker = L.marker([result.lat, result.lon]).addTo(map);
-  searchMarker.bindPopup(`<b>${result.name}</b><br><small>${result.source}</small><br><small class="marker-hint">※ 地図をクリックでピン移動</small>`).openPopup();
+  
+  // ポップアップにStreet Viewボタンを含める
+  const popupContent = `
+    <b>${result.name}</b><br>
+    <small>${result.source}</small><br>
+    <button class="popup-streetview-btn" onclick="openStreetViewFromPopup()">
+      📷 この地点の写真を見る
+    </button>
+    <small class="marker-hint">※ 地図をクリックでピン移動</small>
+  `;
+  searchMarker.bindPopup(popupContent).openPopup();
 }
 
 /**
@@ -95,7 +105,16 @@ export function moveMarkerTo(lat: number, lon: number): void {
 
   // 新しいマーカーを追加
   searchMarker = L.marker([lat, lon]).addTo(map);
-  searchMarker.bindPopup(`<b>選択した地点</b><br><small>クリックで設定</small>`).openPopup();
+  
+  // ポップアップにStreet Viewボタンを含める
+  const popupContent = `
+    <b>選択した地点</b><br>
+    <button class="popup-streetview-btn" onclick="openStreetViewFromPopup()">
+      📷 この地点の写真を見る
+    </button>
+    <small class="marker-hint">※ 地図をクリックでピン移動</small>
+  `;
+  searchMarker.bindPopup(popupContent).openPopup();
 }
 
 /**

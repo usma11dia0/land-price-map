@@ -153,5 +153,7 @@ declare global {
     closeSettingsModal?: () => void;
     /** ストリートビューモーダルを閉じる関数 */
     closeStreetViewModal?: () => void;
+    /** ポップアップからストリートビューを開く関数 */
+    openStreetViewFromPopup?: () => void;
   }
 }
