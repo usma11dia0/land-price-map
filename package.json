@@ -4,6 +4,7 @@
   "description": "地価情報マップ - 日本の地価情報を地図上で確認できるWebアプリケーション",
   "main": "dist/app.js",
   "scripts": {
+    "prebuild": "node -e \"const fs=require('fs'); if(!fs.existsSync('src/config.ts')){fs.copyFileSync('src/config.example.ts','src/config.ts');}\"",
     "build": "tsc",
     "watch": "tsc --watch",
     "dev": "npx http-server -p 8080 -o",
