@@ -571,3 +571,323 @@ body {
   color: #888;
   font-size: 11px;
 }
+
+/* ===== 地価情報コントロールパネル ===== */
+.land-price-control {
+  position: absolute;
+  top: 70px;
+  right: 10px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 180px;
+  font-size: 13px;
+}
+
+.land-price-control-header {
+  background: #2c3e50;
+  color: white;
+  padding: 10px 14px;
+  border-radius: 8px 8px 0 0;
+  font-weight: bold;
+  font-size: 13px;
+}
+
+.land-price-control-body {
+  padding: 12px 14px;
+}
+
+.land-price-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.land-price-checkbox input[type="checkbox"] {
+  display: none;
+}
+
+.checkbox-icon {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #ccc;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.land-price-checkbox input[type="checkbox"]:checked + .checkbox-icon {
+  border-color: transparent;
+}
+
+.land-price-checkbox input[type="checkbox"]:checked + .koji-icon {
+  background: #e74c3c;
+}
+
+.land-price-checkbox input[type="checkbox"]:checked + .chosa-icon {
+  background: #3498db;
+  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+  border-radius: 0;
+}
+
+.koji-icon::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.land-price-checkbox input[type="checkbox"]:checked + .koji-icon::after {
+  background: white;
+}
+
+.land-price-search-btn {
+  width: 100%;
+  padding: 10px;
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-top: 4px;
+}
+
+.land-price-search-btn:hover:not(:disabled) {
+  background: #2980b9;
+}
+
+.land-price-search-btn:disabled {
+  background: #bdc3c7;
+  cursor: not-allowed;
+}
+
+.land-price-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: #7f8c8d;
+  font-size: 12px;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #ddd;
+  border-top-color: #3498db;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.land-price-count {
+  text-align: center;
+  margin-top: 10px;
+  color: #27ae60;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* ===== 地価マーカー ===== */
+.land-price-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.land-price-marker.koji .marker-icon {
+  width: 20px;
+  height: 20px;
+  background: #e74c3c;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.land-price-marker.chosa .marker-icon {
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-bottom: 17px solid #3498db;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.3));
+}
+
+.marker-label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 2px 4px;
+  border-radius: 2px;
+  margin-top: 2px;
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* ===== 地価情報モーダル ===== */
+.modal-land-price {
+  max-width: 550px;
+  max-height: 85vh;
+}
+
+.land-price-section {
+  margin-bottom: 20px;
+}
+
+.land-price-section:last-child {
+  margin-bottom: 0;
+}
+
+.land-price-section h3 {
+  font-size: 14px;
+  color: #2c3e50;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid #3498db;
+}
+
+.land-price-section h4 {
+  font-size: 13px;
+  color: #495057;
+  margin: 16px 0 10px;
+}
+
+.land-price-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.land-price-table th,
+.land-price-table td {
+  padding: 8px 10px;
+  border: 1px solid #dee2e6;
+  text-align: left;
+}
+
+.land-price-table th {
+  background: #f8f9fa;
+  color: #495057;
+  font-weight: 500;
+  width: 40%;
+}
+
+.land-price-table td {
+  color: #2c3e50;
+}
+
+.history-table th,
+.history-table td {
+  text-align: center;
+}
+
+.history-table th:first-child,
+.history-table td:first-child {
+  width: 25%;
+}
+
+/* 価格ハイライト */
+.price-highlight {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 16px;
+  border-radius: 8px;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.price-label {
+  display: block;
+  font-size: 12px;
+  opacity: 0.9;
+  margin-bottom: 4px;
+}
+
+.price-value {
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.price-unit {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.change-rate {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.change-label {
+  color: #6c757d;
+}
+
+.change-value {
+  font-weight: bold;
+}
+
+.change-value.positive {
+  color: #e74c3c;
+}
+
+.change-value.negative {
+  color: #3498db;
+}
+
+.change-value.zero {
+  color: #6c757d;
+}
+
+/* グラフコンテナ */
+.chart-container {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 12px;
+}
+
+#lp-price-chart {
+  max-height: 200px;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+  .land-price-control {
+    top: auto;
+    bottom: 80px;
+    right: 10px;
+    left: 10px;
+    min-width: auto;
+  }
+
+  .modal-land-price {
+    max-height: 90vh;
+  }
+
+  .price-value {
+    font-size: 24px;
+  }
+}

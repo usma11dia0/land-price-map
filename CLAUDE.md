@@ -39,12 +39,14 @@ api/           - Vercel Serverless Functions
 
 ### 環境変数
 - `GOOGLE_API_KEY`: Google Maps Platform APIキー
+- `REINFOLIB_API_KEY`: 不動産情報ライブラリAPIキー
 
 ### Serverless Functions
 - `api/geocode.ts` - Google Geocoding APIプロキシ
 - `api/places.ts` - Google Places APIプロキシ
 - `api/streetview.ts` - Street View Static APIプロキシ
 - `api/streetview-metadata.ts` - Street View Metadata APIプロキシ
+- `api/landprice.ts` - 不動産情報ライブラリAPIプロキシ
 
 ## 現在実装済みの機能
 
@@ -72,6 +74,14 @@ api/           - Vercel Serverless Functions
 - 月次使用量追跡
 - 毎月1日自動リセット
 - 累計使用回数表示
+
+### 地価情報表示
+- 不動産情報ライブラリAPI連携
+- 地価公示データ表示（赤丸マーカー）
+- 都道府県地価調査データ表示（青三角マーカー）
+- 詳細モーダル（価格、土地情報、道路情報、交通情報、法規制情報）
+- 過去5年の価格推移（テーブル＋Chart.jsグラフ）
+- 画面中心20%範囲での検索
 
 ## Git操作
 

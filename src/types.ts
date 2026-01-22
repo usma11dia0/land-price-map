@@ -35,6 +35,8 @@ export interface UsageData {
 export interface AppConfig {
   /** Google APIキー */
   GOOGLE_API_KEY: string;
+  /** 不動産情報ライブラリAPIキー */
+  REINFOLIB_API_KEY?: string;
   /** API使用量の上限 */
   API_USAGE_LIMIT: number;
 }
