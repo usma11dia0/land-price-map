@@ -4,14 +4,11 @@
  */
 
 import type { LandPricePoint, LandPriceControlState, PriceHistory } from './landPriceTypes.js';
-import { fetchLandPriceData, calculateSearchBounds } from './landPrice.js';
+import { fetchLandPriceData, calculateSearchBounds, fetchPointPriceHistory } from './landPrice.js';
 import { getMap, getMapCenter } from './map.js';
 
 /** Leaflet型の簡易定義 */
 declare const L: typeof import('leaflet');
-
-/** Chart.js型の簡易定義 */
-declare const Chart: any;
 
 /** DOM要素 */
 let showKojiCheckbox: HTMLInputElement;
@@ -25,14 +22,14 @@ let landPriceModal: HTMLElement;
 /** 地価マーカーのレイヤーグループ */
 let landPriceLayerGroup: L.LayerGroup | null = null;
 
+/** 検索範囲を示す矩形 */
+let searchBoundsRectangle: L.Rectangle | null = null;
+
 /** 現在表示中の地価ポイントデータ */
 let currentLandPricePoints: LandPricePoint[] = [];
 
 /** 現在のモーダルに表示中のポイント */
 let currentModalPoint: LandPricePoint | null = null;
-
-/** Chart.jsのインスタンス */
-let priceChart: any = null;
 
 /** コントロールの状態 */
 const controlState: LandPriceControlState = {
@@ -133,6 +130,9 @@ async function handleSearch(): Promise<void> {
       west: bounds.getWest(),
     });
 
+    // 検索範囲を四角形で表示
+    displaySearchBoundsRectangle(searchBounds);
+
     // データを取得
     const points = await fetchLandPriceData(
       searchBounds,
@@ -153,6 +153,34 @@ async function handleSearch(): Promise<void> {
     updateSearchButtonState();
     showLoading(false);
   }
+}
+
+/**
+ * 検索範囲を四角形で表示
+ */
+function displaySearchBoundsRectangle(bounds: { north: number; south: number; east: number; west: number }): void {
+  const map = getMap();
+
+  // 既存の矩形を削除
+  if (searchBoundsRectangle) {
+    map.removeLayer(searchBoundsRectangle);
+  }
+
+  // 新しい矩形を作成
+  searchBoundsRectangle = L.rectangle(
+    [
+      [bounds.south, bounds.west],
+      [bounds.north, bounds.east],
+    ],
+    {
+      color: '#e74c3c',
+      weight: 3,
+      opacity: 0.8,
+      fillColor: '#e74c3c',
+      fillOpacity: 0.1,
+      dashArray: '8, 4',
+    }
+  ).addTo(map);
 }
 
 /**
@@ -242,28 +270,31 @@ function openLandPriceModal(point: LandPricePoint): void {
 
   // 変動率の表示
   const changeRateEl = document.getElementById('lp-change-rate')!;
-  if (point.yearOnYearChangeRate !== null) {
-    const rate = point.yearOnYearChangeRate;
-    const sign = rate > 0 ? '+' : '';
-    changeRateEl.textContent = `${sign}${rate.toFixed(1)}%`;
-    changeRateEl.className = 'change-value';
-    if (rate > 0) {
-      changeRateEl.classList.add('positive');
-    } else if (rate < 0) {
-      changeRateEl.classList.add('negative');
+  if (point.yearOnYearChangeRate !== null && point.yearOnYearChangeRate !== undefined) {
+    // 文字列で返される場合があるため数値に変換
+    const rate = typeof point.yearOnYearChangeRate === 'string' 
+      ? parseFloat(point.yearOnYearChangeRate) 
+      : point.yearOnYearChangeRate;
+    
+    if (!isNaN(rate)) {
+      const sign = rate > 0 ? '+' : '';
+      changeRateEl.textContent = `${sign}${rate.toFixed(1)}%`;
+      changeRateEl.className = 'change-value';
+      if (rate > 0) {
+        changeRateEl.classList.add('positive');
+      } else if (rate < 0) {
+        changeRateEl.classList.add('negative');
+      } else {
+        changeRateEl.classList.add('zero');
+      }
     } else {
-      changeRateEl.classList.add('zero');
+      changeRateEl.textContent = '-';
+      changeRateEl.className = 'change-value';
     }
   } else {
     changeRateEl.textContent = '-';
     changeRateEl.className = 'change-value';
   }
-
-  // 価格履歴テーブル
-  updatePriceHistoryTable(point.priceHistory);
-
-  // 価格推移グラフ
-  updatePriceChart(point.priceHistory);
 
   // 土地情報
   setText('lp-use-category', point.useCategory);
@@ -295,8 +326,43 @@ function openLandPriceModal(point: LandPricePoint): void {
   setText('lp-fireproof', point.fireproofArea);
   setText('lp-altitude-district', point.altitudeDistrict);
 
+  // 価格履歴テーブル（遅延取得）
+  loadPriceHistoryAsync(point);
+
   // モーダルを表示
   landPriceModal.classList.add('show');
+}
+
+/**
+ * 価格履歴を非同期で取得してテーブルを更新
+ * @param point 地価ポイント
+ */
+async function loadPriceHistoryAsync(point: LandPricePoint): Promise<void> {
+  const loadingEl = document.getElementById('lp-history-loading');
+  const tableEl = document.getElementById('lp-history-table');
+  const tbody = document.getElementById('lp-price-history')!;
+
+  // ローディング表示
+  if (loadingEl) loadingEl.style.display = 'flex';
+  if (tableEl) tableEl.style.display = 'none';
+  tbody.innerHTML = '';
+
+  try {
+    // 過去データを取得
+    const history = await fetchPointPriceHistory(point);
+    
+    // テーブルを更新
+    updatePriceHistoryTable(history);
+    
+    // ローディング非表示、テーブル表示
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (tableEl) tableEl.style.display = '';
+  } catch (error) {
+    console.error('Failed to load price history:', error);
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (tableEl) tableEl.style.display = '';
+    tbody.innerHTML = '<tr><td colspan="3">データの取得に失敗しました</td></tr>';
+  }
 }
 
 /**
@@ -331,13 +397,22 @@ function updatePriceHistoryTable(history: PriceHistory[]): void {
 
     // 変動率
     const tdChange = document.createElement('td');
-    if (item.changeRate !== null) {
-      const sign = item.changeRate > 0 ? '+' : '';
-      tdChange.textContent = `${sign}${item.changeRate.toFixed(1)}%`;
-      if (item.changeRate > 0) {
-        tdChange.style.color = '#e74c3c';
-      } else if (item.changeRate < 0) {
-        tdChange.style.color = '#3498db';
+    if (item.changeRate !== null && item.changeRate !== undefined) {
+      // 文字列で返される場合があるため数値に変換
+      const rate = typeof item.changeRate === 'string' 
+        ? parseFloat(item.changeRate) 
+        : item.changeRate;
+      
+      if (!isNaN(rate)) {
+        const sign = rate > 0 ? '+' : '';
+        tdChange.textContent = `${sign}${rate.toFixed(1)}%`;
+        if (rate > 0) {
+          tdChange.style.color = '#e74c3c';
+        } else if (rate < 0) {
+          tdChange.style.color = '#3498db';
+        }
+      } else {
+        tdChange.textContent = '-';
       }
     } else {
       tdChange.textContent = '-';
@@ -345,78 +420,6 @@ function updatePriceHistoryTable(history: PriceHistory[]): void {
     tr.appendChild(tdChange);
 
     tbody.appendChild(tr);
-  });
-}
-
-/**
- * 価格推移グラフを更新
- */
-function updatePriceChart(history: PriceHistory[]): void {
-  const canvas = document.getElementById('lp-price-chart') as HTMLCanvasElement;
-  const ctx = canvas.getContext('2d');
-
-  if (!ctx) return;
-
-  // 既存のチャートを破棄
-  if (priceChart) {
-    priceChart.destroy();
-  }
-
-  const labels = history.map((item) => String(item.year));
-  const data = history.map((item) => item.price);
-
-  priceChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [
-        {
-          label: '価格（円/㎡）',
-          data: data,
-          borderColor: '#667eea',
-          backgroundColor: 'rgba(102, 126, 234, 0.1)',
-          borderWidth: 2,
-          fill: true,
-          tension: 0.3,
-          pointBackgroundColor: '#667eea',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2,
-          pointRadius: 5,
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          display: false,
-        },
-        tooltip: {
-          callbacks: {
-            label: function (context: any) {
-              const value = context.parsed.y;
-              return value !== null ? `${value.toLocaleString()} 円/㎡` : 'データなし';
-            },
-          },
-        },
-      },
-      scales: {
-        x: {
-          grid: {
-            display: false,
-          },
-        },
-        y: {
-          beginAtZero: false,
-          ticks: {
-            callback: function (value: number) {
-              return value.toLocaleString();
-            },
-          },
-        },
-      },
-    },
   });
 }
 

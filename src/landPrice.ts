@@ -16,9 +16,6 @@ import type {
 /** APIのズームレベル（13-15が有効） */
 const API_ZOOM_LEVEL = 15;
 
-/** 取得する過去年数 */
-const HISTORY_YEARS = 5;
-
 /**
  * 緯度経度からXYZタイル座標を計算
  * @param lat 緯度
@@ -56,7 +53,7 @@ export function getTilesInBounds(bounds: SearchBounds, zoom: number): TileCoordi
 }
 
 /**
- * 画面中心から20%の範囲を計算
+ * 画面中心から40%の範囲を計算
  * @param centerLat 中心緯度
  * @param centerLon 中心経度
  * @param mapBounds 地図の表示範囲
@@ -70,8 +67,8 @@ export function calculateSearchBounds(
   const latRange = mapBounds.north - mapBounds.south;
   const lonRange = mapBounds.east - mapBounds.west;
 
-  const latOffset = latRange * 0.1; // 20%の半分
-  const lonOffset = lonRange * 0.1;
+  const latOffset = latRange * 0.2; // 40%の半分
+  const lonOffset = lonRange * 0.2;
 
   return {
     north: centerLat + latOffset,
@@ -99,58 +96,27 @@ function getLatestYear(): number {
  * @param year 年度
  * @param priceClassification 地価区分（指定しない場合は両方取得）
  * @returns APIレスポンス
+ * 
+ * 注意: ローカル開発時は `vercel dev` を使用してください。
+ * 通常の http-server では CORS エラーが発生します。
  */
 async function fetchTileData(
   tile: TileCoordinate,
   year: number,
   priceClassification?: PriceClassification
 ): Promise<LandPriceApiResponse | null> {
-  const isProduction =
-    window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
-
-  let url: string;
-  if (isProduction) {
-    const params = new URLSearchParams({
-      z: String(tile.z),
-      x: String(tile.x),
-      y: String(tile.y),
-      year: String(year),
-    });
-    if (priceClassification !== undefined) {
-      params.append('priceClassification', String(priceClassification));
-    }
-    url = `/api/landprice?${params.toString()}`;
-  } else {
-    // 開発環境: 直接APIを呼び出し（config.tsからAPIキーを取得）
-    const { CONFIG } = await import('./config.js');
-    const params = new URLSearchParams({
-      response_format: 'geojson',
-      z: String(tile.z),
-      x: String(tile.x),
-      y: String(tile.y),
-      year: String(year),
-    });
-    if (priceClassification !== undefined) {
-      params.append('priceClassification', String(priceClassification));
-    }
-    const apiUrl = `https://www.reinfolib.mlit.go.jp/ex-api/external/XPT002?${params.toString()}`;
-
-    try {
-      const response = await fetch(apiUrl, {
-        headers: {
-          'Ocp-Apim-Subscription-Key': CONFIG.REINFOLIB_API_KEY || '',
-        },
-      });
-      if (!response.ok) {
-        console.error(`API error: ${response.status}`);
-        return null;
-      }
-      return await response.json();
-    } catch (error) {
-      console.error('Failed to fetch tile data:', error);
-      return null;
-    }
+  // 常にプロキシAPI経由でアクセス（本番でも開発でも同じ）
+  // ローカル開発時は `vercel dev` を使用することで /api/landprice が動作する
+  const params = new URLSearchParams({
+    z: String(tile.z),
+    x: String(tile.x),
+    y: String(tile.y),
+    year: String(year),
+  });
+  if (priceClassification !== undefined) {
+    params.append('priceClassification', String(priceClassification));
   }
+  const url = `/api/landprice?${params.toString()}`;
 
   try {
     const response = await fetch(url);
@@ -295,98 +261,79 @@ export async function fetchLandPriceData(
 
   await Promise.all(fetchPromises);
 
-  // 過去5年分のデータを取得して履歴を構築
+  // 過去データの取得を削除（高速化のため、モーダル表示時に遅延取得）
   const points = Array.from(pointsMap.values());
-
-  if (points.length > 0) {
-    await fetchPriceHistory(points, latestYear, tiles);
-  }
 
   return points;
 }
 
+/** 取得する過去年数 */
+const HISTORY_YEARS = 5;
+
 /**
- * 過去5年分の価格履歴を取得
- * @param points 地価ポイントの配列
- * @param latestYear 最新年
- * @param tiles タイル座標の配列
+ * 単一ポイントの価格履歴を遅延取得
+ * モーダル表示時に呼び出される
+ * @param point 地価ポイント
+ * @returns 価格履歴の配列
  */
-async function fetchPriceHistory(
-  points: LandPricePoint[],
-  latestYear: number,
-  tiles: TileCoordinate[]
-): Promise<void> {
-  // ポイントIDから分類を逆引きするマップ
-  const pointClassificationMap = new Map<string, PriceClassification>();
-  for (const point of points) {
-    pointClassificationMap.set(point.id, point.priceClassification);
+export async function fetchPointPriceHistory(
+  point: LandPricePoint
+): Promise<PriceHistory[]> {
+  const latestYear = getLatestYear();
+  const tile = latLonToTile(point.lat, point.lon, API_ZOOM_LEVEL);
+  
+  // 価格履歴を格納するMap
+  const priceByYear = new Map<number, { price: number | null; changeRate: number | null }>();
+  
+  // 最新年のデータを追加
+  priceByYear.set(latestYear, {
+    price: point.currentPrice,
+    changeRate: point.yearOnYearChangeRate,
+  });
+
+  // 過去4年分を並列で取得
+  const fetchPromises: Promise<void>[] = [];
+  
+  for (let i = 1; i < HISTORY_YEARS; i++) {
+    const year = latestYear - i;
+    const promise = (async () => {
+      const data = await fetchTileData(tile, year, point.priceClassification);
+      
+      if (data && data.features) {
+        for (const feature of data.features) {
+          if (feature.properties.point_id === point.id) {
+            let price: number | null = null;
+            if (feature.properties.u_current_years_price_ja) {
+              const priceStr = feature.properties.u_current_years_price_ja.replace(/,/g, '');
+              price = parseInt(priceStr, 10);
+              if (isNaN(price)) price = null;
+            }
+            priceByYear.set(year, {
+              price,
+              changeRate: feature.properties.year_on_year_change_rate ?? null,
+            });
+            break;
+          }
+        }
+      }
+    })();
+    fetchPromises.push(promise);
   }
 
-  // 各年の価格を保存するマップ
-  const priceByYearMap = new Map<string, Map<number, { price: number | null; changeRate: number | null }>>();
+  await Promise.all(fetchPromises);
 
-  // 初期化
-  for (const point of points) {
-    priceByYearMap.set(point.id, new Map());
-    // 最新年のデータを追加
-    priceByYearMap.get(point.id)!.set(latestYear, {
-      price: point.currentPrice,
-      changeRate: point.yearOnYearChangeRate,
+  // 年度順にソートして配列に変換
+  const history: PriceHistory[] = [];
+  for (let i = HISTORY_YEARS - 1; i >= 0; i--) {
+    const year = latestYear - i;
+    const data = priceByYear.get(year);
+    history.push({
+      year,
+      price: data?.price ?? null,
+      changeRate: data?.changeRate ?? null,
     });
   }
 
-  // 過去4年分を取得（最新年は既に取得済み）
-  for (let i = 1; i < HISTORY_YEARS; i++) {
-    const year = latestYear - i;
-
-    const fetchPromises: Promise<void>[] = [];
-
-    for (const tile of tiles) {
-      // 地価公示と都道府県地価調査の両方を取得
-      for (const classification of [0, 1] as PriceClassification[]) {
-        const promise = (async () => {
-          const data = await fetchTileData(tile, year, classification);
-
-          if (data && data.features) {
-            for (const feature of data.features) {
-              const id = feature.properties.point_id;
-              if (id && priceByYearMap.has(id)) {
-                let price: number | null = null;
-                if (feature.properties.u_current_years_price_ja) {
-                  const priceStr = feature.properties.u_current_years_price_ja.replace(/,/g, '');
-                  price = parseInt(priceStr, 10);
-                  if (isNaN(price)) price = null;
-                }
-                priceByYearMap.get(id)!.set(year, {
-                  price,
-                  changeRate: feature.properties.year_on_year_change_rate ?? null,
-                });
-              }
-            }
-          }
-        })();
-        fetchPromises.push(promise);
-      }
-    }
-
-    await Promise.all(fetchPromises);
-  }
-
-  // 価格履歴をポイントに設定
-  for (const point of points) {
-    const priceMap = priceByYearMap.get(point.id);
-    if (priceMap) {
-      const history: PriceHistory[] = [];
-      for (let i = HISTORY_YEARS - 1; i >= 0; i--) {
-        const year = latestYear - i;
-        const data = priceMap.get(year);
-        history.push({
-          year,
-          price: data?.price ?? null,
-          changeRate: data?.changeRate ?? null,
-        });
-      }
-      point.priceHistory = history;
-    }
-  }
+  return history;
 }
+

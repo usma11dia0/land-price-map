@@ -703,44 +703,89 @@ body {
   font-weight: 500;
 }
 
-/* ===== 地価マーカー ===== */
+/* ===== 地価マーカー（Googleマップ風立体デザイン） ===== */
 .land-price-marker {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
+/* 地価公示マーカー（赤・立体的なピン） */
 .land-price-marker.koji .marker-icon {
-  width: 20px;
-  height: 20px;
-  background: #e74c3c;
-  border-radius: 50%;
-  border: 2px solid white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  width: 26px;
+  height: 26px;
+  background: linear-gradient(135deg, #ff6b6b 0%, #e74c3c 50%, #c0392b 100%);
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  border: 3px solid white;
+  box-shadow: 
+    0 3px 8px rgba(0, 0, 0, 0.4),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.2),
+    inset 0 3px 6px rgba(255, 255, 255, 0.3);
+  position: relative;
 }
 
+.land-price-marker.koji .marker-icon::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: radial-gradient(circle, white 0%, rgba(255,255,255,0.6) 100%);
+  border-radius: 50%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* 都道府県地価調査マーカー（青・立体的な三角ピン） */
 .land-price-marker.chosa .marker-icon {
   width: 0;
   height: 0;
-  border-left: 10px solid transparent;
-  border-right: 10px solid transparent;
-  border-bottom: 17px solid #3498db;
-  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.3));
+  border-left: 14px solid transparent;
+  border-right: 14px solid transparent;
+  border-bottom: 28px solid #3498db;
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.4));
+  position: relative;
 }
 
+.land-price-marker.chosa .marker-icon::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: -5px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 10px solid rgba(255, 255, 255, 0.5);
+}
+
+/* マーカーラベル（フォントサイズ拡大） */
 .marker-label {
   position: absolute;
   top: 100%;
   left: 50%;
   transform: translateX(-50%);
   white-space: nowrap;
-  font-size: 10px;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 2px 4px;
-  border-radius: 2px;
-  margin-top: 2px;
-  font-weight: 500;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 3px 6px;
+  border-radius: 3px;
+  margin-top: 4px;
+  font-weight: 600;
+  color: #2c3e50;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* 検索範囲の矩形 */
+.search-bounds-rectangle {
+  stroke: #e74c3c;
+  stroke-width: 3;
+  stroke-dasharray: 8, 4;
+  fill: rgba(231, 76, 60, 0.1);
+  stroke-opacity: 0.8;
 }
 
 /* ===== 地価情報モーダル ===== */
@@ -871,6 +916,30 @@ body {
 
 #lp-price-chart {
   max-height: 200px;
+}
+
+/* 価格履歴ローディング */
+.history-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  color: #666;
+  font-size: 14px;
+}
+
+.loading-spinner-small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e0e0e0;
+  border-top: 2px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* レスポンシブ対応 */

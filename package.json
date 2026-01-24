@@ -7,8 +7,11 @@
     "prebuild": "node -e \"const fs=require('fs'); if(!fs.existsSync('src/config.ts')){fs.copyFileSync('src/config.example.ts','src/config.ts');}\"",
     "build": "tsc",
     "watch": "tsc --watch",
-    "dev": "npx http-server -p 8080 -o",
-    "start": "npm run build && npm run dev"
+    "serve": "npx http-server -p 8080 -o",
+    "start": "npm run build && npm run serve",
+    "test": "npx playwright test",
+    "test:ui": "npx playwright test --ui",
+    "test:headed": "npx playwright test --headed"
   },
   "keywords": [
     "land-price",
@@ -19,6 +22,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@playwright/test": "^1.58.0",
     "@types/leaflet": "^1.9.8",
     "@vercel/node": "^3.0.0",
     "typescript": "^5.3.3"
