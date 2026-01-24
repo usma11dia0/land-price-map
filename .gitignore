@@ -41,3 +41,6 @@ npm-debug.log*
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Other
+check-api.js

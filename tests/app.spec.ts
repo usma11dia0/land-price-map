@@ -1,16 +1,16 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('地価情報マップ', () => {
+test.describe('地図検索システム', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
   });
 
   test('ページが正常に読み込まれる', async ({ page }) => {
     // タイトルを確認
-    await expect(page).toHaveTitle('地価情報マップ');
+    await expect(page).toHaveTitle('地図検索システム（実務修習）');
 
     // ヘッダーが表示されている
-    await expect(page.locator('h1')).toHaveText('地価情報マップ');
+    await expect(page.locator('h1')).toHaveText('地図検索システム（実務修習）');
 
     // 地図が表示されている
     await expect(page.locator('#map')).toBeVisible();
@@ -83,7 +83,7 @@ test.describe('地価情報マップ', () => {
     await map.click();
 
     // エラーが発生しないことを確認（ページがクラッシュしない）
-    await expect(page).toHaveTitle('地価情報マップ');
+    await expect(page).toHaveTitle('地図検索システム（実務修習）');
   });
 });
 

@@ -79,6 +79,27 @@ export function calculateSearchBounds(
 }
 
 /**
+ * 建蔽率・容積率の値をクリーンアップ
+ * APIから返される値が「-800(%)」のような形式の場合：
+ * - 先頭のハイフンは「指定容積率を上回る容積率を使用して価格を決定した地点」を示す
+ * - ハイフンを削除し、末尾に★を追加
+ * @param value APIから返される値
+ * @returns クリーンアップされた値（指定超過の場合は★付き）
+ */
+function cleanRatioValue(value: string | undefined): string {
+  if (!value) return '-';
+  
+  let cleaned = value.trim();
+  
+  // 先頭のハイフンがある場合は、指定容積率を超過した地点
+  if (cleaned.startsWith('-')) {
+    cleaned = cleaned.substring(1) + '★';
+  }
+  
+  return cleaned || '-';
+}
+
+/**
  * 最新年を取得
  * @returns 最新年（年度）
  */
@@ -152,8 +173,16 @@ function featureToLandPricePoint(
     if (isNaN(currentPrice)) currentPrice = null;
   }
 
+  // point_idを数値に変換
+  let pointId: number | null = null;
+  if (props.point_id) {
+    const parsed = typeof props.point_id === 'string' ? parseInt(props.point_id, 10) : props.point_id;
+    if (!isNaN(parsed)) pointId = parsed;
+  }
+
   return {
     id: props.point_id || `${lat}-${lon}-${priceClassification}`,
+    pointId,
     lat,
     lon,
     priceClassification,
@@ -191,8 +220,8 @@ function featureToLandPricePoint(
 
     // 法規制情報
     regulationsUseCategory: props.regulations_use_category_name_ja || '-',
-    buildingCoverageRatio: props.u_regulations_building_coverage_ratio_ja || '-',
-    floorAreaRatio: props.u_regulations_floor_area_ratio_ja || '-',
+    buildingCoverageRatio: cleanRatioValue(props.u_regulations_building_coverage_ratio_ja),
+    floorAreaRatio: cleanRatioValue(props.u_regulations_floor_area_ratio_ja),
     fireproofArea: props.regulations_fireproof_name_ja || '-',
     altitudeDistrict: props.regulations_altitude_district_name_ja || '-',
   };
@@ -322,9 +351,9 @@ export async function fetchPointPriceHistory(
 
   await Promise.all(fetchPromises);
 
-  // 年度順にソートして配列に変換
+  // 年度順にソートして配列に変換（降順：最新が上）
   const history: PriceHistory[] = [];
-  for (let i = HISTORY_YEARS - 1; i >= 0; i--) {
+  for (let i = 0; i < HISTORY_YEARS; i++) {
     const year = latestYear - i;
     const data = priceByYear.get(year);
     history.push({

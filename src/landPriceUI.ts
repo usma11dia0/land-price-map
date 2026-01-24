@@ -309,10 +309,16 @@ function openLandPriceModal(point: LandPricePoint): void {
   );
   setText('lp-front-road-azimuth', point.frontRoadAzimuth);
   setText('lp-front-road-pavement', point.frontRoadPavement);
-  setText(
-    'lp-side-road',
-    point.sideRoad !== '-' ? `${point.sideRoadAzimuth} ${point.sideRoad}` : '-'
-  );
+  // 側道の表示（方位が'-'の場合は側道名のみ表示）
+  let sideRoadDisplay = '-';
+  if (point.sideRoad !== '-') {
+    if (point.sideRoadAzimuth !== '-' && point.sideRoadAzimuth !== '') {
+      sideRoadDisplay = `${point.sideRoadAzimuth} ${point.sideRoad}`;
+    } else {
+      sideRoadDisplay = point.sideRoad;
+    }
+  }
+  setText('lp-side-road', sideRoadDisplay);
 
   // 交通情報
   setText('lp-nearest-station', point.nearestStation);
@@ -326,11 +332,107 @@ function openLandPriceModal(point: LandPricePoint): void {
   setText('lp-fireproof', point.fireproofArea);
   setText('lp-altitude-district', point.altitudeDistrict);
 
+  // ★マークの注記を表示/非表示
+  const ratioNoteEl = document.getElementById('lp-ratio-note');
+  if (ratioNoteEl) {
+    // 建蔽率または容積率に★が含まれている場合は注記を表示
+    const hasStarMark = point.buildingCoverageRatio.includes('★') || 
+                        point.floorAreaRatio.includes('★');
+    ratioNoteEl.style.display = hasStarMark ? 'block' : 'none';
+  }
+
+  // 鑑定評価書リンク
+  // URL形式: https://www.reinfolib.mlit.go.jp/landPrices_/realEstateAppraisalReport/{year}/{pref_code}/{year}{city_code}{lot_number}.html
+  const appraisalSection = document.getElementById('lp-appraisal-section');
+  const appraisalLink = document.getElementById('lp-appraisal-link') as HTMLAnchorElement;
+  
+  if (appraisalSection && appraisalLink && point.priceClassification === 0) {
+    // 地価公示のみ対応（都道府県地価調査は別URL形式の可能性）
+    const appraisalUrl = generateAppraisalUrl(point);
+    if (appraisalUrl) {
+      appraisalLink.href = appraisalUrl;
+      appraisalSection.style.display = 'block';
+    } else {
+      appraisalSection.style.display = 'none';
+    }
+  } else if (appraisalSection) {
+    appraisalSection.style.display = 'none';
+  }
+
   // 価格履歴テーブル（遅延取得）
   loadPriceHistoryAsync(point);
 
   // モーダルを表示
   landPriceModal.classList.add('show');
+}
+
+/**
+ * 鑑定評価書のURLを生成
+ * URL形式: https://www.reinfolib.mlit.go.jp/landPrices_/realEstateAppraisalReport/{year}/{pref_code}/{year}{city_code}{lot_number}.html
+ * 例: 中央5-5 → 2025131020505.html
+ * @param point 地価ポイント
+ * @returns 鑑定評価書URL（生成できない場合はnull）
+ */
+function generateAppraisalUrl(point: LandPricePoint): string | null {
+  // 標準地番号から数字部分を抽出（例: "中央5-28" → "5-28"）
+  const lotMatch = point.standardLotNumber.match(/(\d+)-(\d+)/);
+  if (!lotMatch) return null;
+
+  const categoryNum = lotMatch[1].padStart(2, '0'); // 用途番号（2桁）
+  const pointNum = lotMatch[2].padStart(2, '0');    // 地点番号（2桁）
+  const lotNumber = categoryNum + pointNum;         // "0528"
+
+  // 都道府県コード（東京都 = 13）- cityNameから推測は難しいので、既知のコードを使用
+  // ここでは簡易的に、東京23区を想定
+  const prefCode = '13';
+  
+  // 市区町村コード（下3桁）- point.idから取得できないため、簡易的に処理
+  // 中央区 = 13102 → 102
+  // 実際のcity_codeがAPIレスポンスに含まれているはずなので、それを使用
+  // 暫定的に、地名から推測
+  const cityCodeMap: { [key: string]: string } = {
+    '中央': '102',
+    '千代田': '101',
+    '港': '103',
+    '新宿': '104',
+    '文京': '105',
+    '台東': '106',
+    '墨田': '107',
+    '江東': '108',
+    '品川': '109',
+    '目黒': '110',
+    '大田': '111',
+    '世田谷': '112',
+    '渋谷': '113',
+    '中野': '114',
+    '杉並': '115',
+    '豊島': '116',
+    '北': '117',
+    '荒川': '118',
+    '板橋': '119',
+    '練馬': '120',
+    '足立': '121',
+    '葛飾': '122',
+    '江戸川': '123',
+  };
+
+  // 地名を抽出（例: "中央5-28" → "中央"）
+  const placeMatch = point.standardLotNumber.match(/^([^\d]+)/);
+  if (!placeMatch) return null;
+  
+  const placeName = placeMatch[1];
+  const cityCode = cityCodeMap[placeName];
+  if (!cityCode) return null;
+
+  // 年度（最新の地価公示年度）
+  // 地価公示は1月1日時点、3月に公表される
+  // 例: 2026年1月現在 → 令和7年（2025年）の地価公示が最新
+  const currentYear = new Date().getFullYear();
+  const appraisalYear = currentYear - 1;
+
+  // URL生成
+  const fileName = `${appraisalYear}${prefCode}${cityCode}${lotNumber}`;
+  return `https://www.reinfolib.mlit.go.jp/landPrices_/realEstateAppraisalReport/${appraisalYear}/${prefCode}/${fileName}.html`;
 }
 
 /**

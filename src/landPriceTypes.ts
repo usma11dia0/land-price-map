@@ -113,6 +113,7 @@ export interface PriceHistory {
  */
 export interface LandPricePoint {
   id: string;
+  pointId: number | null; // 不動産情報ライブラリのポイントID（鑑定評価書リンク用）
   lat: number;
   lon: number;
   priceClassification: PriceClassification;

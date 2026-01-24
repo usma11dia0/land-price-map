@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>地価情報マップ</title>
+    <title>地図検索システム（実務修習）</title>
 
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -14,7 +14,7 @@
 <body>
     <div id="header">
         <div id="header-left">
-            <h1>地価情報マップ</h1>
+            <h1>地図検索システム（実務修習）</h1>
         </div>
         <div id="search-area">
             <div id="external-links">
@@ -289,6 +289,22 @@
                             <td id="lp-altitude-district">-</td>
                         </tr>
                     </table>
+                    <p class="ratio-note" id="lp-ratio-note" style="display: none;">
+                        ★ 指定容積率を上回る容積率を使用することを前提に価格を決定した地点
+                    </p>
+                </div>
+
+                <!-- 鑑定評価書 -->
+                <div class="land-price-section" id="lp-appraisal-section" style="display: none;">
+                    <h3>鑑定評価書</h3>
+                    <a id="lp-appraisal-link" href="#" target="_blank" class="appraisal-link">
+                        <svg class="appraisal-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                            <polyline points="15 3 21 3 21 9"></polyline>
+                            <line x1="10" y1="14" x2="21" y2="3"></line>
+                        </svg>
+                        詳細表示（不動産情報ライブラリ）
+                    </a>
                 </div>
             </div>
         </div>
