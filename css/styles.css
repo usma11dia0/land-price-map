@@ -703,6 +703,25 @@ body {
   font-weight: 500;
 }
 
+.land-price-warning {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 20px;
+  background-color: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 8px;
+  color: #856404;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-line;
+  z-index: 2000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-width: 400px;
+  text-align: center;
+}
+
 /* ===== 地価マーカー（Googleマップ風立体デザイン） ===== */
 .land-price-marker {
   display: flex;

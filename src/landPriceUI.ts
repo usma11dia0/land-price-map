@@ -4,7 +4,12 @@
  */
 
 import type { LandPricePoint, LandPriceControlState, PriceHistory } from './landPriceTypes.js';
-import { fetchLandPriceData, calculateSearchBounds, fetchPointPriceHistory } from './landPrice.js';
+import { 
+  fetchLandPriceData, 
+  calculateSearchBounds, 
+  fetchPointPriceHistory,
+  MAX_SEARCH_RESULTS,
+} from './landPrice.js';
 import { getMap, getMapCenter } from './map.js';
 import { openRegisterDialogFromLandPrice } from './savedLocationUI.js';
 
@@ -258,25 +263,26 @@ function updateSearchButtonState(): void {
 async function handleSearch(): Promise<void> {
   if (controlState.isLoading) return;
 
+  const map = getMap();
+  const center = getMapCenter();
+  const bounds = map.getBounds();
+
+  // 検索範囲を計算（画面中心から20%）
+  const searchBounds = calculateSearchBounds(center.lat, center.lon, {
+    north: bounds.getNorth(),
+    south: bounds.getSouth(),
+    east: bounds.getEast(),
+    west: bounds.getWest(),
+  });
+
   // ローディング状態にする
   controlState.isLoading = true;
   updateSearchButtonState();
   showLoading(true);
   hideCount();
+  hideWarning();
 
   try {
-    const map = getMap();
-    const center = getMapCenter();
-    const bounds = map.getBounds();
-
-    // 検索範囲を計算（画面中心から20%）
-    const searchBounds = calculateSearchBounds(center.lat, center.lon, {
-      north: bounds.getNorth(),
-      south: bounds.getSouth(),
-      east: bounds.getEast(),
-      west: bounds.getWest(),
-    });
-
     // 検索範囲を四角形で表示
     displaySearchBoundsRectangle(searchBounds);
 
@@ -287,11 +293,30 @@ async function handleSearch(): Promise<void> {
       controlState.showChosa
     );
 
-    // マーカーを表示
-    displayLandPriceMarkers(points);
+    // 件数が上限を超えている場合
+    if (points.length > MAX_SEARCH_RESULTS) {
+      // 上限件数までに制限
+      const limitedPoints = points.slice(0, MAX_SEARCH_RESULTS);
+      
+      // マーカーを表示（制限された件数）
+      displayLandPriceMarkers(limitedPoints);
+      
+      // 警告を表示
+      showWarning(
+        `検索結果が${points.length}件あります。\n` +
+        `表示は${MAX_SEARCH_RESULTS}件までに制限されています。\n` +
+        `より正確な結果を得るには、地図を拡大してください。`
+      );
+      
+      // 件数を表示（制限表示）
+      showCount(MAX_SEARCH_RESULTS, points.length);
+    } else {
+      // マーカーを表示
+      displayLandPriceMarkers(points);
 
-    // 件数を表示
-    showCount(points.length);
+      // 件数を表示
+      showCount(points.length);
+    }
   } catch (error) {
     console.error('地価データ取得エラー:', error);
     alert('地価データの取得に失敗しました');
@@ -340,8 +365,12 @@ function showLoading(show: boolean): void {
 /**
  * 件数表示
  */
-function showCount(count: number): void {
-  countValueEl.textContent = String(count);
+function showCount(count: number, totalCount?: number): void {
+  if (totalCount && totalCount > count) {
+    countValueEl.textContent = `${count}/${totalCount}`;
+  } else {
+    countValueEl.textContent = String(count);
+  }
   countEl.style.display = 'block';
 }
 
@@ -350,6 +379,36 @@ function showCount(count: number): void {
  */
 function hideCount(): void {
   countEl.style.display = 'none';
+}
+
+/**
+ * 警告メッセージを表示
+ */
+function showWarning(message: string): void {
+  let warningEl = document.getElementById('land-price-warning');
+  if (!warningEl) {
+    warningEl = document.createElement('div');
+    warningEl.id = 'land-price-warning';
+    warningEl.className = 'land-price-warning';
+    document.body.appendChild(warningEl);
+  }
+  warningEl.textContent = message;
+  warningEl.style.display = 'block';
+  
+  // 5秒後に自動で非表示
+  setTimeout(() => {
+    hideWarning();
+  }, 8000);
+}
+
+/**
+ * 警告メッセージを非表示
+ */
+function hideWarning(): void {
+  const warningEl = document.getElementById('land-price-warning');
+  if (warningEl) {
+    warningEl.style.display = 'none';
+  }
 }
 
 /**

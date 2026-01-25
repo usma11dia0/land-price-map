@@ -16,6 +16,12 @@ import type {
 /** APIのズームレベル（13-15が有効） */
 const API_ZOOM_LEVEL = 15;
 
+/** 検索結果の上限件数 */
+export const MAX_SEARCH_RESULTS = 100;
+
+/** 検索タイル数の上限（これ以上は事前に警告） */
+export const MAX_TILES_WARNING = 20;
+
 /**
  * 緯度経度からXYZタイル座標を計算
  * @param lat 緯度
@@ -37,7 +43,7 @@ export function latLonToTile(lat: number, lon: number, zoom: number): TileCoordi
  * @param zoom ズームレベル
  * @returns タイル座標の配列
  */
-export function getTilesInBounds(bounds: SearchBounds, zoom: number): TileCoordinate[] {
+function getTilesInBounds(bounds: SearchBounds, zoom: number): TileCoordinate[] {
   const tiles: TileCoordinate[] = [];
 
   const nw = latLonToTile(bounds.north, bounds.west, zoom);
@@ -50,6 +56,16 @@ export function getTilesInBounds(bounds: SearchBounds, zoom: number): TileCoordi
   }
 
   return tiles;
+}
+
+/**
+ * 検索範囲のタイル数を事前計算
+ * @param bounds 検索範囲
+ * @returns タイル数
+ */
+export function estimateTileCount(bounds: SearchBounds): number {
+  const tiles = getTilesInBounds(bounds, API_ZOOM_LEVEL);
+  return tiles.length;
 }
 
 /**
