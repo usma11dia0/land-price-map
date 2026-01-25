@@ -555,7 +555,7 @@ function populatePanelContent(panel: HTMLElement, point: LandPricePoint): void {
   // タイトル
   const titleEl = panel.querySelector('#land-price-modal-title, .floating-panel-header h2') as HTMLElement;
   if (titleEl) {
-    const typeLabel = point.priceClassification === 0 ? '【公示】' : '【調査】';
+    const typeLabel = point.priceClassification === 0 ? '【地価公示】' : '【都道府県地価調査】';
     titleEl.textContent = `${typeLabel} ${point.standardLotNumber}`;
   }
 
