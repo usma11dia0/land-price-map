@@ -994,3 +994,610 @@ body {
     font-size: 24px;
   }
 }
+
+/* ===== フローティングパネル ===== */
+.floating-panel {
+  display: none;
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  width: 420px;
+  max-height: calc(100vh - 100px);
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  z-index: 1500;
+  flex-direction: column;
+  overflow: hidden;
+  resize: both;
+  min-width: 320px;
+  min-height: 200px;
+}
+
+.floating-panel.show {
+  display: flex;
+}
+
+.floating-panel.minimized {
+  max-height: 300px;
+  height: auto !important;
+  resize: none;
+  min-height: auto;
+}
+
+.floating-panel.minimized .floating-panel-body {
+  display: block;
+  padding: 12px;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+/* 最小化時に非表示にするセクション */
+.floating-panel.minimized .section-hideable {
+  display: none !important;
+}
+
+/* 最小化時に表示する価格推移セクション */
+.floating-panel.minimized .section-price-history {
+  display: block;
+  margin-bottom: 0;
+}
+
+.floating-panel.minimized .section-price-history h3 {
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.floating-panel.dragging {
+  opacity: 0.9;
+  cursor: grabbing;
+  user-select: none;
+}
+
+.floating-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.floating-panel-header:active {
+  cursor: grabbing;
+}
+
+.floating-panel-header h2 {
+  font-size: 14px;
+  margin: 0;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  margin-right: 8px;
+}
+
+.floating-panel-controls {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.panel-minimize,
+.panel-close {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.panel-minimize:hover,
+.panel-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.panel-close:hover {
+  background: rgba(231, 76, 60, 0.8);
+}
+
+.floating-panel-body {
+  padding: 16px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* フローティングパネル内のセクション */
+.floating-panel .land-price-section {
+  margin-bottom: 16px;
+}
+
+.floating-panel .land-price-section:last-child {
+  margin-bottom: 0;
+}
+
+.floating-panel .land-price-section h3 {
+  font-size: 13px;
+  color: #2c3e50;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 2px solid #667eea;
+}
+
+.floating-panel .land-price-table {
+  font-size: 12px;
+}
+
+.floating-panel .land-price-table th,
+.floating-panel .land-price-table td {
+  padding: 6px 8px;
+}
+
+.floating-panel .price-highlight {
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.floating-panel .price-value {
+  font-size: 24px;
+}
+
+/* モバイル対応 */
+@media (max-width: 768px) {
+  .floating-panel {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-height: 60vh;
+    border-radius: 16px 16px 0 0;
+    resize: none;
+  }
+
+  .floating-panel.minimized {
+    max-height: none;
+  }
+}
+
+/* ===== 登録地点パネル ===== */
+.saved-location-panel {
+  position: absolute;
+  top: 260px;
+  right: 10px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 180px;
+  max-width: 250px;
+  font-size: 13px;
+  overflow: hidden;
+}
+
+.saved-location-panel-header {
+  background: #27ae60;
+  color: white;
+  padding: 10px 14px;
+  font-weight: bold;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+}
+
+.saved-location-panel-header:hover {
+  background: #219a52;
+}
+
+.panel-toggle-icon {
+  transition: transform 0.2s;
+}
+
+.saved-location-panel.collapsed .panel-toggle-icon {
+  transform: rotate(-90deg);
+}
+
+.saved-location-panel-body {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.saved-location-panel.collapsed .saved-location-panel-body {
+  display: none;
+}
+
+.saved-location-list {
+  padding: 0;
+}
+
+.saved-location-empty {
+  padding: 16px;
+  text-align: center;
+  color: #95a5a6;
+  font-size: 12px;
+}
+
+.saved-location-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid #eee;
+  gap: 10px;
+}
+
+.saved-location-item:last-child {
+  border-bottom: none;
+}
+
+.saved-location-item:hover {
+  background: #f8f9fa;
+}
+
+.saved-location-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.saved-location-info {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.saved-location-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.saved-location-detail {
+  font-size: 11px;
+  color: #7f8c8d;
+  margin-top: 2px;
+}
+
+.saved-location-delete {
+  background: none;
+  border: none;
+  color: #bdc3c7;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.saved-location-delete:hover {
+  color: #e74c3c;
+  background: #fdeaea;
+}
+
+/* ===== 登録地点マーカー ===== */
+.saved-location-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+/* 登録地点マーカー（立体的なピン） */
+.saved-location-marker .marker-icon {
+  --marker-color: #3498db;
+  width: 26px;
+  height: 26px;
+  background: linear-gradient(135deg, 
+    color-mix(in srgb, var(--marker-color) 70%, white) 0%, 
+    var(--marker-color) 50%, 
+    color-mix(in srgb, var(--marker-color) 70%, black) 100%);
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  border: 3px solid white;
+  box-shadow: 
+    0 3px 8px rgba(0, 0, 0, 0.4),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.2),
+    inset 0 3px 6px rgba(255, 255, 255, 0.3);
+  position: relative;
+}
+
+.saved-location-marker .marker-icon::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: radial-gradient(circle, white 0%, rgba(255,255,255,0.6) 100%);
+  border-radius: 50%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.saved-location-marker .marker-label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(44, 62, 80, 0.95);
+  color: white;
+  padding: 3px 6px;
+  border-radius: 3px;
+  font-size: 13px;
+  white-space: nowrap;
+  margin-top: 4px;
+  font-weight: 500;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 登録地点ポップアップ */
+.saved-location-popup {
+  min-width: 150px;
+}
+
+.saved-location-popup .popup-header {
+  padding-left: 8px;
+  margin-bottom: 8px;
+}
+
+.saved-location-popup .popup-info {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.saved-location-popup .popup-price {
+  font-weight: bold;
+  color: #2c3e50;
+}
+
+.saved-location-popup .popup-memo {
+  font-size: 11px;
+  color: #7f8c8d;
+  padding: 6px 8px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.saved-location-popup .popup-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.saved-location-popup .popup-btn {
+  flex: 1;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  background: #3498db;
+  color: white;
+}
+
+.saved-location-popup .popup-btn:hover {
+  background: #2980b9;
+}
+
+.saved-location-popup .popup-btn-danger {
+  background: #e74c3c;
+}
+
+.saved-location-popup .popup-btn-danger:hover {
+  background: #c0392b;
+}
+
+/* ===== 地点登録ダイアログ ===== */
+.dialog-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 2000;
+  justify-content: center;
+  align-items: center;
+}
+
+.dialog-overlay.show {
+  display: flex;
+}
+
+.dialog {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  width: 90%;
+  max-width: 360px;
+  overflow: hidden;
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: #27ae60;
+  color: white;
+}
+
+.dialog-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.dialog-close {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  opacity: 0.8;
+}
+
+.dialog-close:hover {
+  opacity: 1;
+}
+
+.dialog-body {
+  padding: 20px;
+}
+
+.dialog-footer {
+  padding: 16px 20px;
+  background: #f8f9fa;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #495057;
+  margin-bottom: 6px;
+}
+
+.form-input,
+.form-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.form-input:focus,
+.form-textarea:focus {
+  outline: none;
+  border-color: #27ae60;
+  box-shadow: 0 0 0 3px rgba(39, 174, 96, 0.1);
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+/* カラーピッカー */
+.color-picker {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.color-option {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 3px solid transparent;
+  transition: transform 0.1s, border-color 0.1s;
+}
+
+.color-option:hover {
+  transform: scale(1.1);
+}
+
+.color-option.selected {
+  border-color: #2c3e50;
+}
+
+/* ボタン */
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-primary {
+  background: #27ae60;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #219a52;
+}
+
+.btn-secondary {
+  background: #95a5a6;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background: #7f8c8d;
+}
+
+/* 地価パネルの登録ボタン */
+.panel-register-btn {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  opacity: 0.8;
+  transition: opacity 0.2s, background 0.2s;
+}
+
+.panel-register-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* モバイル対応 */
+@media (max-width: 768px) {
+  .saved-location-panel {
+    top: auto;
+    bottom: 160px;
+    right: 10px;
+    left: 10px;
+    min-width: auto;
+    max-width: none;
+  }
+
+  .dialog {
+    width: 95%;
+    max-width: none;
+  }
+}

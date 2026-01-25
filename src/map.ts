@@ -8,6 +8,16 @@ import type { SearchResult, Coordinates } from './types.js';
 /** Leaflet型の簡易定義 */
 declare const L: typeof import('leaflet');
 
+/** 登録地点UIからのインポート（遅延） */
+let openRegisterDialogFromMap: ((lat: number, lon: number) => void) | null = null;
+
+/**
+ * 登録地点UIの関数を設定（循環参照を避けるため）
+ */
+export function setRegisterDialogHandler(handler: (lat: number, lon: number) => void): void {
+  openRegisterDialogFromMap = handler;
+}
+
 /** 地図インスタンス */
 let map: L.Map;
 
@@ -52,6 +62,13 @@ export function initMap(containerId: string): L.Map {
 
   // 初期状態ではマーカーなし（検索後に表示）
   searchMarker = null;
+
+  // 右クリックでカスタムマーカー追加
+  map.on('contextmenu', (e: L.LeafletMouseEvent) => {
+    if (openRegisterDialogFromMap) {
+      openRegisterDialogFromMap(e.latlng.lat, e.latlng.lng);
+    }
+  });
 
   return map;
 }

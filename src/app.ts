@@ -7,6 +7,7 @@ import { initMap, moveMarkerTo } from './map.js';
 import { initSearch } from './search.js';
 import { initUI, setupModalEventListeners, setupExternalLinkButtons, hideSearchResults } from './ui.js';
 import { initLandPriceUI } from './landPriceUI.js';
+import { initSavedLocationUI } from './savedLocationUI.js';
 
 /** Leaflet型の簡易定義 */
 declare const L: typeof import('leaflet');
@@ -34,6 +35,9 @@ function initApp(): void {
 
   // 地価情報UIを初期化
   initLandPriceUI();
+
+  // 登録地点UIを初期化
+  initSavedLocationUI();
 
   // 地図クリックでピンを移動
   map.on('click', (e: L.LeafletMouseEvent) => {

@@ -6,6 +6,7 @@
 import type { LandPricePoint, LandPriceControlState, PriceHistory } from './landPriceTypes.js';
 import { fetchLandPriceData, calculateSearchBounds, fetchPointPriceHistory } from './landPrice.js';
 import { getMap, getMapCenter } from './map.js';
+import { openRegisterDialogFromLandPrice } from './savedLocationUI.js';
 
 /** Leaflet型の簡易定義 */
 declare const L: typeof import('leaflet');
@@ -17,7 +18,23 @@ let searchBtn: HTMLButtonElement;
 let loadingEl: HTMLElement;
 let countEl: HTMLElement;
 let countValueEl: HTMLElement;
-let landPriceModal: HTMLElement;
+let panelTemplate: HTMLElement;
+
+/** 開いているパネルの管理 */
+interface PanelState {
+  element: HTMLElement;
+  pointId: string;
+  isMinimized: boolean;
+  isDragging: boolean;
+  dragStartX: number;
+  dragStartY: number;
+  panelStartX: number;
+  panelStartY: number;
+}
+
+const openPanels: Map<string, PanelState> = new Map();
+let panelCounter = 0;
+let currentDraggingPanel: PanelState | null = null;
 
 /** 地価マーカーのレイヤーグループ */
 let landPriceLayerGroup: L.LayerGroup | null = null;
@@ -27,9 +44,6 @@ let searchBoundsRectangle: L.Rectangle | null = null;
 
 /** 現在表示中の地価ポイントデータ */
 let currentLandPricePoints: LandPricePoint[] = [];
-
-/** 現在のモーダルに表示中のポイント */
-let currentModalPoint: LandPricePoint | null = null;
 
 /** コントロールの状態 */
 const controlState: LandPriceControlState = {
@@ -49,7 +63,7 @@ export function initLandPriceUI(): void {
   loadingEl = document.getElementById('land-price-loading')!;
   countEl = document.getElementById('land-price-count')!;
   countValueEl = document.getElementById('land-price-count-value')!;
-  landPriceModal = document.getElementById('land-price-modal')!;
+  panelTemplate = document.getElementById('land-price-panel')!;
 
   // レイヤーグループを作成
   const map = getMap();
@@ -58,8 +72,13 @@ export function initLandPriceUI(): void {
   // イベントリスナーを設定
   setupEventListeners();
 
+  // グローバルドラッグイベントを設定
+  setupGlobalDragEvents();
+
   // グローバル関数を設定
-  window.closeLandPriceModal = closeLandPriceModal;
+  window.closeLandPricePanel = closeLandPricePanel;
+  window.toggleLandPricePanel = toggleLandPricePanel;
+  window.closeAllLandPricePanels = closeAllLandPricePanels;
 
   console.log('地価情報UI初期化完了');
 }
@@ -82,19 +101,147 @@ function setupEventListeners(): void {
   // 検索ボタンのクリックイベント
   searchBtn.addEventListener('click', handleSearch);
 
-  // モーダル背景クリックで閉じる
-  landPriceModal.addEventListener('click', (e) => {
-    if (e.target === landPriceModal) {
-      closeLandPriceModal();
+  // ESCキーで全パネルを閉じる
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && openPanels.size > 0) {
+      closeAllLandPricePanels();
+    }
+  });
+}
+
+/**
+ * グローバルドラッグイベントを設定
+ */
+function setupGlobalDragEvents(): void {
+  // マウスムーブ - ドラッグ中
+  document.addEventListener('mousemove', (e: MouseEvent) => {
+    if (!currentDraggingPanel) return;
+
+    const panel = currentDraggingPanel;
+    const deltaX = e.clientX - panel.dragStartX;
+    const deltaY = e.clientY - panel.dragStartY;
+
+    let newX = panel.panelStartX + deltaX;
+    let newY = panel.panelStartY + deltaY;
+
+    // 画面外にはみ出さないように制限
+    const panelRect = panel.element.getBoundingClientRect();
+    const maxX = window.innerWidth - panelRect.width;
+    const maxY = window.innerHeight - panelRect.height;
+
+    newX = Math.max(0, Math.min(newX, maxX));
+    newY = Math.max(0, Math.min(newY, maxY));
+
+    panel.element.style.right = 'auto';
+    panel.element.style.left = `${newX}px`;
+    panel.element.style.top = `${newY}px`;
+  });
+
+  // マウスアップ - ドラッグ終了
+  document.addEventListener('mouseup', () => {
+    if (currentDraggingPanel) {
+      currentDraggingPanel.element.classList.remove('dragging');
+      currentDraggingPanel.isDragging = false;
+      currentDraggingPanel = null;
     }
   });
 
-  // ESCキーでモーダルを閉じる
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && landPriceModal.classList.contains('show')) {
-      closeLandPriceModal();
+  // タッチムーブ
+  document.addEventListener('touchmove', (e: TouchEvent) => {
+    if (!currentDraggingPanel) return;
+
+    const panel = currentDraggingPanel;
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - panel.dragStartX;
+    const deltaY = touch.clientY - panel.dragStartY;
+
+    let newX = panel.panelStartX + deltaX;
+    let newY = panel.panelStartY + deltaY;
+
+    const panelRect = panel.element.getBoundingClientRect();
+    const maxX = window.innerWidth - panelRect.width;
+    const maxY = window.innerHeight - panelRect.height;
+
+    newX = Math.max(0, Math.min(newX, maxX));
+    newY = Math.max(0, Math.min(newY, maxY));
+
+    panel.element.style.right = 'auto';
+    panel.element.style.left = `${newX}px`;
+    panel.element.style.top = `${newY}px`;
+  }, { passive: true });
+
+  // タッチエンド
+  document.addEventListener('touchend', () => {
+    if (currentDraggingPanel) {
+      currentDraggingPanel.element.classList.remove('dragging');
+      currentDraggingPanel.isDragging = false;
+      currentDraggingPanel = null;
     }
   });
+}
+
+/**
+ * パネルにドラッグ機能を設定
+ */
+function setupPanelDrag(panelState: PanelState): void {
+  const header = panelState.element.querySelector('.floating-panel-header') as HTMLElement;
+  if (!header) return;
+
+  // マウスダウン
+  header.addEventListener('mousedown', (e: MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button')) return;
+
+    panelState.isDragging = true;
+    panelState.element.classList.add('dragging');
+    currentDraggingPanel = panelState;
+
+    panelState.dragStartX = e.clientX;
+    panelState.dragStartY = e.clientY;
+
+    const rect = panelState.element.getBoundingClientRect();
+    panelState.panelStartX = rect.left;
+    panelState.panelStartY = rect.top;
+
+    // このパネルを最前面に
+    bringPanelToFront(panelState);
+
+    e.preventDefault();
+  });
+
+  // タッチスタート
+  header.addEventListener('touchstart', (e: TouchEvent) => {
+    if ((e.target as HTMLElement).closest('button')) return;
+
+    panelState.isDragging = true;
+    panelState.element.classList.add('dragging');
+    currentDraggingPanel = panelState;
+
+    const touch = e.touches[0];
+    panelState.dragStartX = touch.clientX;
+    panelState.dragStartY = touch.clientY;
+
+    const rect = panelState.element.getBoundingClientRect();
+    panelState.panelStartX = rect.left;
+    panelState.panelStartY = rect.top;
+
+    bringPanelToFront(panelState);
+  }, { passive: true });
+
+  // パネルクリックで最前面に
+  panelState.element.addEventListener('mousedown', () => {
+    bringPanelToFront(panelState);
+  });
+}
+
+/**
+ * パネルを最前面に移動
+ */
+function bringPanelToFront(panelState: PanelState): void {
+  const baseZIndex = 1500;
+  openPanels.forEach((p) => {
+    p.element.style.zIndex = String(baseZIndex);
+  });
+  panelState.element.style.zIndex = String(baseZIndex + 1);
 }
 
 /**
@@ -250,66 +397,159 @@ function createLandPriceMarker(point: LandPricePoint): L.Marker {
 }
 
 /**
- * 地価情報モーダルを開く
+ * 地価情報パネルを開く（複数パネル対応）
  */
 function openLandPriceModal(point: LandPricePoint): void {
-  currentModalPoint = point;
+  // 同じポイントのパネルが既に開いている場合は、そのパネルを前面に
+  const existingPanel = openPanels.get(point.id);
+  if (existingPanel) {
+    bringPanelToFront(existingPanel);
+    return;
+  }
 
-  // タイトルを設定
-  const titleEl = document.getElementById('land-price-modal-title')!;
-  const typeLabel = point.priceClassification === 0 ? '【地価公示】' : '【都道府県地価調査】';
-  titleEl.textContent = `${typeLabel} ${point.standardLotNumber}`;
+  // 新しいパネルを作成
+  const panelId = `land-price-panel-${++panelCounter}`;
+  const panel = createPanelElement(panelId, point);
+  
+  // パネルの位置を設定（既存パネルとずらす）
+  const offset = openPanels.size * 30;
+  panel.style.top = `${80 + offset}px`;
+  panel.style.right = `${20 + offset}px`;
+
+  // DOMに追加
+  document.body.appendChild(panel);
+
+  // パネル状態を作成
+  const panelState: PanelState = {
+    element: panel,
+    pointId: point.id,
+    isMinimized: false,
+    isDragging: false,
+    dragStartX: 0,
+    dragStartY: 0,
+    panelStartX: 0,
+    panelStartY: 0,
+  };
+
+  // パネルを登録
+  openPanels.set(point.id, panelState);
+
+  // ドラッグ機能を設定
+  setupPanelDrag(panelState);
+
+  // パネルを表示
+  panel.classList.add('show');
+
+  // 最前面に
+  bringPanelToFront(panelState);
+
+  // パネル内容を設定
+  populatePanelContent(panel, point);
+
+  // 価格履歴を非同期で取得
+  loadPriceHistoryForPanel(panel, point);
+}
+
+/**
+ * パネル要素を作成
+ */
+function createPanelElement(panelId: string, point: LandPricePoint): HTMLElement {
+  const panel = panelTemplate.cloneNode(true) as HTMLElement;
+  panel.id = panelId;
+  panel.setAttribute('data-point-id', point.id);
+
+  // 閉じるボタンと最小化ボタンのonclickを更新
+  const closeBtn = panel.querySelector('.panel-close') as HTMLButtonElement;
+  const minimizeBtn = panel.querySelector('.panel-minimize') as HTMLButtonElement;
+  const registerBtn = panel.querySelector('.panel-register-btn') as HTMLButtonElement;
+
+  if (closeBtn) {
+    closeBtn.removeAttribute('onclick');
+    closeBtn.addEventListener('click', () => closeLandPricePanel(point.id));
+  }
+
+  if (minimizeBtn) {
+    minimizeBtn.removeAttribute('onclick');
+    minimizeBtn.addEventListener('click', () => toggleLandPricePanel(point.id));
+  }
+
+  // 登録ボタンのイベントリスナー
+  if (registerBtn) {
+    registerBtn.addEventListener('click', (e) => {
+      e.stopPropagation(); // ドラッグ防止
+      openRegisterDialogFromLandPrice(point.lat, point.lon, {
+        standardLotNumber: point.standardLotNumber,
+        currentPrice: point.currentPriceDisplay,
+        priceClassification: point.priceClassification,
+        locationNumber: point.locationNumber,
+      });
+    });
+  }
+
+  return panel;
+}
+
+/**
+ * パネルの内容を設定
+ */
+function populatePanelContent(panel: HTMLElement, point: LandPricePoint): void {
+  // タイトル
+  const titleEl = panel.querySelector('#land-price-modal-title, .floating-panel-header h2') as HTMLElement;
+  if (titleEl) {
+    const typeLabel = point.priceClassification === 0 ? '【公示】' : '【調査】';
+    titleEl.textContent = `${typeLabel} ${point.standardLotNumber}`;
+  }
+
+  // 各フィールドを設定するヘルパー
+  const setField = (selector: string, value: string) => {
+    const el = panel.querySelector(`#${selector}, [data-field="${selector}"]`) as HTMLElement;
+    if (el) el.textContent = value;
+  };
 
   // 基本情報
-  setText('lp-standard-lot-number', point.standardLotNumber);
-  setText('lp-location-number', point.locationNumber);
-  setText('lp-residence-display', point.residenceDisplay);
+  setField('lp-standard-lot-number', point.standardLotNumber);
+  setField('lp-location-number', point.locationNumber);
+  setField('lp-residence-display', point.residenceDisplay);
 
   // 価格情報
-  setText('lp-current-price', point.currentPriceDisplay);
+  setField('lp-current-price', point.currentPriceDisplay);
 
-  // 変動率の表示
-  const changeRateEl = document.getElementById('lp-change-rate')!;
-  if (point.yearOnYearChangeRate !== null && point.yearOnYearChangeRate !== undefined) {
-    // 文字列で返される場合があるため数値に変換
-    const rate = typeof point.yearOnYearChangeRate === 'string' 
-      ? parseFloat(point.yearOnYearChangeRate) 
-      : point.yearOnYearChangeRate;
-    
-    if (!isNaN(rate)) {
-      const sign = rate > 0 ? '+' : '';
-      changeRateEl.textContent = `${sign}${rate.toFixed(1)}%`;
-      changeRateEl.className = 'change-value';
-      if (rate > 0) {
-        changeRateEl.classList.add('positive');
-      } else if (rate < 0) {
-        changeRateEl.classList.add('negative');
+  // 変動率
+  const changeRateEl = panel.querySelector('#lp-change-rate') as HTMLElement;
+  if (changeRateEl) {
+    if (point.yearOnYearChangeRate !== null && point.yearOnYearChangeRate !== undefined) {
+      const rate = typeof point.yearOnYearChangeRate === 'string' 
+        ? parseFloat(point.yearOnYearChangeRate) 
+        : point.yearOnYearChangeRate;
+      
+      if (!isNaN(rate)) {
+        const sign = rate > 0 ? '+' : '';
+        changeRateEl.textContent = `${sign}${rate.toFixed(1)}%`;
+        changeRateEl.className = 'change-value';
+        if (rate > 0) changeRateEl.classList.add('positive');
+        else if (rate < 0) changeRateEl.classList.add('negative');
+        else changeRateEl.classList.add('zero');
       } else {
-        changeRateEl.classList.add('zero');
+        changeRateEl.textContent = '-';
+        changeRateEl.className = 'change-value';
       }
     } else {
       changeRateEl.textContent = '-';
       changeRateEl.className = 'change-value';
     }
-  } else {
-    changeRateEl.textContent = '-';
-    changeRateEl.className = 'change-value';
   }
 
   // 土地情報
-  setText('lp-use-category', point.useCategory);
-  setText('lp-cadastral', point.cadastral);
-  setText('lp-usage-status', point.usageStatus);
-  setText('lp-surrounding-usage', point.surroundingUsageStatus);
+  setField('lp-use-category', point.useCategory);
+  setField('lp-cadastral', point.cadastral);
+  setField('lp-usage-status', point.usageStatus);
+  setField('lp-surrounding-usage', point.surroundingUsageStatus);
 
   // 道路情報
-  setText(
-    'lp-front-road-width',
-    point.frontRoadWidth !== null ? `${point.frontRoadWidth}m` : '-'
-  );
-  setText('lp-front-road-azimuth', point.frontRoadAzimuth);
-  setText('lp-front-road-pavement', point.frontRoadPavement);
-  // 側道の表示（方位が'-'の場合は側道名のみ表示）
+  setField('lp-front-road-width', point.frontRoadWidth !== null ? `${point.frontRoadWidth}m` : '-');
+  setField('lp-front-road-azimuth', point.frontRoadAzimuth);
+  setField('lp-front-road-pavement', point.frontRoadPavement);
+
   let sideRoadDisplay = '-';
   if (point.sideRoad !== '-') {
     if (point.sideRoadAzimuth !== '-' && point.sideRoadAzimuth !== '') {
@@ -318,36 +558,33 @@ function openLandPriceModal(point: LandPricePoint): void {
       sideRoadDisplay = point.sideRoad;
     }
   }
-  setText('lp-side-road', sideRoadDisplay);
+  setField('lp-side-road', sideRoadDisplay);
 
   // 交通情報
-  setText('lp-nearest-station', point.nearestStation);
-  setText('lp-distance-to-station', point.distanceToStation);
-  setText('lp-proximity-transportation', point.proximityToTransportation);
+  setField('lp-nearest-station', point.nearestStation);
+  setField('lp-distance-to-station', point.distanceToStation);
+  setField('lp-proximity-transportation', point.proximityToTransportation);
 
   // 法規制情報
-  setText('lp-regulations-use-category', point.regulationsUseCategory);
-  setText('lp-building-coverage', point.buildingCoverageRatio);
-  setText('lp-floor-area-ratio', point.floorAreaRatio);
-  setText('lp-fireproof', point.fireproofArea);
-  setText('lp-altitude-district', point.altitudeDistrict);
+  setField('lp-regulations-use-category', point.regulationsUseCategory);
+  setField('lp-building-coverage', point.buildingCoverageRatio);
+  setField('lp-floor-area-ratio', point.floorAreaRatio);
+  setField('lp-fireproof', point.fireproofArea);
+  setField('lp-altitude-district', point.altitudeDistrict);
 
-  // ★マークの注記を表示/非表示
-  const ratioNoteEl = document.getElementById('lp-ratio-note');
+  // ★マーク注記
+  const ratioNoteEl = panel.querySelector('#lp-ratio-note') as HTMLElement;
   if (ratioNoteEl) {
-    // 建蔽率または容積率に★が含まれている場合は注記を表示
     const hasStarMark = point.buildingCoverageRatio.includes('★') || 
                         point.floorAreaRatio.includes('★');
     ratioNoteEl.style.display = hasStarMark ? 'block' : 'none';
   }
 
   // 鑑定評価書リンク
-  // URL形式: https://www.reinfolib.mlit.go.jp/landPrices_/realEstateAppraisalReport/{year}/{pref_code}/{year}{city_code}{lot_number}.html
-  const appraisalSection = document.getElementById('lp-appraisal-section');
-  const appraisalLink = document.getElementById('lp-appraisal-link') as HTMLAnchorElement;
+  const appraisalSection = panel.querySelector('#lp-appraisal-section') as HTMLElement;
+  const appraisalLink = panel.querySelector('#lp-appraisal-link') as HTMLAnchorElement;
   
   if (appraisalSection && appraisalLink && point.priceClassification === 0) {
-    // 地価公示のみ対応（都道府県地価調査は別URL形式の可能性）
     const appraisalUrl = generateAppraisalUrl(point);
     if (appraisalUrl) {
       appraisalLink.href = appraisalUrl;
@@ -358,12 +595,74 @@ function openLandPriceModal(point: LandPricePoint): void {
   } else if (appraisalSection) {
     appraisalSection.style.display = 'none';
   }
+}
 
-  // 価格履歴テーブル（遅延取得）
-  loadPriceHistoryAsync(point);
+/**
+ * パネル用の価格履歴を非同期で取得
+ */
+async function loadPriceHistoryForPanel(panel: HTMLElement, point: LandPricePoint): Promise<void> {
+  const loadingEl = panel.querySelector('#lp-history-loading') as HTMLElement;
+  const tableEl = panel.querySelector('#lp-history-table') as HTMLElement;
+  const tbody = panel.querySelector('#lp-price-history') as HTMLElement;
 
-  // モーダルを表示
-  landPriceModal.classList.add('show');
+  if (loadingEl) loadingEl.style.display = 'flex';
+  if (tableEl) tableEl.style.display = 'none';
+  if (tbody) tbody.innerHTML = '';
+
+  try {
+    const history = await fetchPointPriceHistory(point);
+    updatePriceHistoryTableInPanel(panel, history);
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (tableEl) tableEl.style.display = '';
+  } catch (error) {
+    console.error('Failed to load price history:', error);
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (tableEl) tableEl.style.display = '';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="3">データの取得に失敗しました</td></tr>';
+  }
+}
+
+/**
+ * パネル内の価格履歴テーブルを更新
+ */
+function updatePriceHistoryTableInPanel(panel: HTMLElement, history: PriceHistory[]): void {
+  const tbody = panel.querySelector('#lp-price-history') as HTMLElement;
+  if (!tbody) return;
+  
+  tbody.innerHTML = '';
+
+  history.forEach((item) => {
+    const tr = document.createElement('tr');
+
+    const tdYear = document.createElement('td');
+    tdYear.textContent = String(item.year);
+    tr.appendChild(tdYear);
+
+    const tdPrice = document.createElement('td');
+    tdPrice.textContent = item.price !== null ? item.price.toLocaleString() : '-';
+    tr.appendChild(tdPrice);
+
+    const tdChange = document.createElement('td');
+    if (item.changeRate !== null && item.changeRate !== undefined) {
+      const rate = typeof item.changeRate === 'string' 
+        ? parseFloat(item.changeRate) 
+        : item.changeRate;
+      
+      if (!isNaN(rate)) {
+        const sign = rate > 0 ? '+' : '';
+        tdChange.textContent = `${sign}${rate.toFixed(1)}%`;
+        if (rate > 0) tdChange.style.color = '#e74c3c';
+        else if (rate < 0) tdChange.style.color = '#3498db';
+      } else {
+        tdChange.textContent = '-';
+      }
+    } else {
+      tdChange.textContent = '-';
+    }
+    tr.appendChild(tdChange);
+
+    tbody.appendChild(tr);
+  });
 }
 
 /**
@@ -436,101 +735,56 @@ function generateAppraisalUrl(point: LandPricePoint): string | null {
 }
 
 /**
- * 価格履歴を非同期で取得してテーブルを更新
- * @param point 地価ポイント
+ * 特定のパネルを閉じる
  */
-async function loadPriceHistoryAsync(point: LandPricePoint): Promise<void> {
-  const loadingEl = document.getElementById('lp-history-loading');
-  const tableEl = document.getElementById('lp-history-table');
-  const tbody = document.getElementById('lp-price-history')!;
+export function closeLandPricePanel(pointId: string): void {
+  const panelState = openPanels.get(pointId);
+  if (!panelState) return;
 
-  // ローディング表示
-  if (loadingEl) loadingEl.style.display = 'flex';
-  if (tableEl) tableEl.style.display = 'none';
-  tbody.innerHTML = '';
-
-  try {
-    // 過去データを取得
-    const history = await fetchPointPriceHistory(point);
-    
-    // テーブルを更新
-    updatePriceHistoryTable(history);
-    
-    // ローディング非表示、テーブル表示
-    if (loadingEl) loadingEl.style.display = 'none';
-    if (tableEl) tableEl.style.display = '';
-  } catch (error) {
-    console.error('Failed to load price history:', error);
-    if (loadingEl) loadingEl.style.display = 'none';
-    if (tableEl) tableEl.style.display = '';
-    tbody.innerHTML = '<tr><td colspan="3">データの取得に失敗しました</td></tr>';
-  }
+  // DOMから削除
+  panelState.element.remove();
+  
+  // マップから削除
+  openPanels.delete(pointId);
 }
 
 /**
- * テキストを設定（ヘルパー関数）
+ * 全てのパネルを閉じる
  */
-function setText(elementId: string, value: string): void {
-  const el = document.getElementById(elementId);
-  if (el) {
-    el.textContent = value;
-  }
-}
-
-/**
- * 価格履歴テーブルを更新
- */
-function updatePriceHistoryTable(history: PriceHistory[]): void {
-  const tbody = document.getElementById('lp-price-history')!;
-  tbody.innerHTML = '';
-
-  history.forEach((item) => {
-    const tr = document.createElement('tr');
-
-    // 年度
-    const tdYear = document.createElement('td');
-    tdYear.textContent = String(item.year);
-    tr.appendChild(tdYear);
-
-    // 価格
-    const tdPrice = document.createElement('td');
-    tdPrice.textContent = item.price !== null ? item.price.toLocaleString() : '-';
-    tr.appendChild(tdPrice);
-
-    // 変動率
-    const tdChange = document.createElement('td');
-    if (item.changeRate !== null && item.changeRate !== undefined) {
-      // 文字列で返される場合があるため数値に変換
-      const rate = typeof item.changeRate === 'string' 
-        ? parseFloat(item.changeRate) 
-        : item.changeRate;
-      
-      if (!isNaN(rate)) {
-        const sign = rate > 0 ? '+' : '';
-        tdChange.textContent = `${sign}${rate.toFixed(1)}%`;
-        if (rate > 0) {
-          tdChange.style.color = '#e74c3c';
-        } else if (rate < 0) {
-          tdChange.style.color = '#3498db';
-        }
-      } else {
-        tdChange.textContent = '-';
-      }
-    } else {
-      tdChange.textContent = '-';
-    }
-    tr.appendChild(tdChange);
-
-    tbody.appendChild(tr);
+export function closeAllLandPricePanels(): void {
+  openPanels.forEach((panelState) => {
+    panelState.element.remove();
   });
+  openPanels.clear();
 }
 
 /**
- * 地価情報モーダルを閉じる
+ * パネルの最小化/最大化を切り替え
  */
-export function closeLandPriceModal(): void {
-  landPriceModal.classList.remove('show');
-  currentModalPoint = null;
+export function toggleLandPricePanel(pointId: string): void {
+  const panelState = openPanels.get(pointId);
+  if (!panelState) return;
+
+  panelState.isMinimized = !panelState.isMinimized;
+  
+  if (panelState.isMinimized) {
+    panelState.element.classList.add('minimized');
+  } else {
+    panelState.element.classList.remove('minimized');
+  }
+  
+  updateMinimizeButtonForPanel(panelState);
+}
+
+/**
+ * 特定パネルの最小化ボタンを更新
+ */
+function updateMinimizeButtonForPanel(panelState: PanelState): void {
+  const minimizeBtn = panelState.element.querySelector('.panel-minimize');
+  if (minimizeBtn) {
+    minimizeBtn.textContent = panelState.isMinimized ? '+' : '−';
+    minimizeBtn.setAttribute('title', panelState.isMinimized ? '展開' : '最小化');
+  }
 }
 
 /**
@@ -538,6 +792,8 @@ export function closeLandPriceModal(): void {
  */
 declare global {
   interface Window {
-    closeLandPriceModal?: () => void;
+    closeLandPricePanel?: (pointId: string) => void;
+    toggleLandPricePanel?: (pointId: string) => void;
+    closeAllLandPricePanels?: () => void;
   }
 }

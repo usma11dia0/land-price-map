@@ -70,6 +70,58 @@
         </div>
     </div>
 
+    <!-- 登録地点パネル -->
+    <div id="saved-location-panel" class="saved-location-panel">
+        <div class="saved-location-panel-header">
+            <span>登録地点</span>
+            <svg class="panel-toggle-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+            </svg>
+        </div>
+        <div class="saved-location-panel-body">
+            <div id="saved-location-list" class="saved-location-list">
+                <div class="saved-location-empty">右クリックで地点を登録</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 地点登録・編集ダイアログ -->
+    <div id="register-location-dialog" class="dialog-overlay">
+        <div class="dialog">
+            <div class="dialog-header">
+                <h3 id="register-dialog-title">地点を登録</h3>
+                <button class="dialog-close" onclick="closeRegisterDialog()">&times;</button>
+            </div>
+            <div class="dialog-body">
+                <div class="form-group">
+                    <label for="register-name">マーカー名</label>
+                    <input type="text" id="register-name" class="form-input" placeholder="マーカーの名前を入力" />
+                </div>
+                <div class="form-group">
+                    <label>色</label>
+                    <div class="color-picker">
+                        <div class="color-option" data-color="#e74c3c" style="background-color: #e74c3c;"></div>
+                        <div class="color-option" data-color="#e67e22" style="background-color: #e67e22;"></div>
+                        <div class="color-option" data-color="#f1c40f" style="background-color: #f1c40f;"></div>
+                        <div class="color-option" data-color="#2ecc71" style="background-color: #2ecc71;"></div>
+                        <div class="color-option selected" data-color="#3498db" style="background-color: #3498db;"></div>
+                        <div class="color-option" data-color="#9b59b6" style="background-color: #9b59b6;"></div>
+                        <div class="color-option" data-color="#e91e63" style="background-color: #e91e63;"></div>
+                        <div class="color-option" data-color="#95a5a6" style="background-color: #95a5a6;"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="register-memo">メモ（任意）</label>
+                    <textarea id="register-memo" class="form-textarea" rows="2" placeholder="メモを入力"></textarea>
+                </div>
+            </div>
+            <div class="dialog-footer">
+                <button class="btn btn-secondary" onclick="closeRegisterDialog()">キャンセル</button>
+                <button class="btn btn-primary" id="register-submit-btn" onclick="submitRegisterDialog()">登録</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ストリートビューモーダル -->
     <div id="streetview-modal" class="modal-overlay">
         <div class="modal modal-streetview">
@@ -141,16 +193,23 @@
         </div>
     </div>
 
-    <!-- 地価情報詳細モーダル -->
-    <div id="land-price-modal" class="modal-overlay">
-        <div class="modal modal-land-price">
-            <div class="modal-header">
-                <h2 id="land-price-modal-title">地価情報</h2>
-                <button class="modal-close" onclick="closeLandPriceModal()">&times;</button>
+    <!-- 地価情報フローティングパネル -->
+    <div id="land-price-panel" class="floating-panel">
+        <div class="floating-panel-header" id="land-price-panel-header">
+            <h2 id="land-price-modal-title">地価情報</h2>
+            <div class="floating-panel-controls">
+                <button class="panel-register-btn" title="地点を登録">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                        <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2zm0 15l-5-2.18L7 18V5h10v13z"/>
+                    </svg>
+                </button>
+                <button class="panel-minimize" onclick="toggleLandPricePanel()" title="最小化">−</button>
+                <button class="panel-close" onclick="closeLandPriceModal()" title="閉じる">&times;</button>
             </div>
-            <div class="modal-body">
-                <!-- 基本情報 -->
-                <div class="land-price-section">
+        </div>
+        <div class="floating-panel-body" id="land-price-panel-body">
+            <!-- 基本情報 -->
+                <div class="land-price-section section-hideable">
                     <h3>基本情報</h3>
                     <table class="land-price-table">
                         <tr>
@@ -168,8 +227,8 @@
                     </table>
                 </div>
 
-                <!-- 価格情報 -->
-                <div class="land-price-section">
+                <!-- 価格情報（当年価格・変動率） -->
+                <div class="land-price-section section-hideable">
                     <h3>価格情報</h3>
                     <div class="price-highlight">
                         <span class="price-label">当年価格</span>
@@ -179,9 +238,11 @@
                         <span class="change-label">対前年変動率</span>
                         <span id="lp-change-rate" class="change-value">-</span>
                     </div>
+                </div>
 
-                    <!-- 過去5年の価格推移テーブル -->
-                    <h4>過去5年の価格推移</h4>
+                <!-- 過去5年の価格推移（最小化時も表示） -->
+                <div class="land-price-section section-price-history">
+                    <h3>過去5年の価格推移</h3>
                     <div id="lp-history-loading" class="history-loading" style="display: none;">
                         <span class="loading-spinner-small"></span> 読み込み中...
                     </div>
@@ -199,7 +260,7 @@
                 </div>
 
                 <!-- 土地情報 -->
-                <div class="land-price-section">
+                <div class="land-price-section section-hideable">
                     <h3>土地情報</h3>
                     <table class="land-price-table">
                         <tr>
@@ -222,7 +283,7 @@
                 </div>
 
                 <!-- 道路情報 -->
-                <div class="land-price-section">
+                <div class="land-price-section section-hideable">
                     <h3>道路情報</h3>
                     <table class="land-price-table">
                         <tr>
@@ -245,7 +306,7 @@
                 </div>
 
                 <!-- 交通情報 -->
-                <div class="land-price-section">
+                <div class="land-price-section section-hideable">
                     <h3>交通情報</h3>
                     <table class="land-price-table">
                         <tr>
@@ -264,7 +325,7 @@
                 </div>
 
                 <!-- 法規制情報 -->
-                <div class="land-price-section">
+                <div class="land-price-section section-hideable">
                     <h3>法規制情報</h3>
                     <table class="land-price-table">
                         <tr>
@@ -293,18 +354,17 @@
                     </p>
                 </div>
 
-                <!-- 鑑定評価書 -->
-                <div class="land-price-section" id="lp-appraisal-section" style="display: none;">
-                    <h3>鑑定評価書</h3>
-                    <a id="lp-appraisal-link" href="#" target="_blank" class="appraisal-link">
-                        <svg class="appraisal-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                            <polyline points="15 3 21 3 21 9"></polyline>
-                            <line x1="10" y1="14" x2="21" y2="3"></line>
-                        </svg>
-                        詳細表示（不動産情報ライブラリ）
-                    </a>
-                </div>
+            <!-- 鑑定評価書 -->
+            <div class="land-price-section section-hideable" id="lp-appraisal-section" style="display: none;">
+                <h3>鑑定評価書</h3>
+                <a id="lp-appraisal-link" href="#" target="_blank" class="appraisal-link">
+                    <svg class="appraisal-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                    詳細表示（不動産情報ライブラリ）
+                </a>
             </div>
         </div>
     </div>
