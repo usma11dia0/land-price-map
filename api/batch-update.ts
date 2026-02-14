@@ -90,7 +90,7 @@ export default async function handler(
       WHERE status = 'pending'
       ORDER BY id
       LIMIT ${MAX_TILES_PER_RUN}
-    `;
+    ` as Record<string, any>[];
 
     // 未処理タイルがなければ新規タイルを生成
     if (pendingTiles.length === 0) {
@@ -101,7 +101,7 @@ export default async function handler(
         WHERE status = 'pending'
         ORDER BY id
         LIMIT ${MAX_TILES_PER_RUN}
-      `;
+      ` as Record<string, any>[];
     }
 
     let processed = 0;

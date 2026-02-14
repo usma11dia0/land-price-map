@@ -155,8 +155,8 @@ export default async function handler(
     `;
 
     let migrated = false;
-    if (oldTableCheck[0].exists) {
-      const oldCount = await sql`SELECT count(*) as cnt FROM land_price_points;`;
+    if ((oldTableCheck as Record<string, any>[])[0].exists) {
+      const oldCount = await sql`SELECT count(*) as cnt FROM land_price_points;` as Record<string, any>[];
       const count = parseInt(String(oldCount[0].cnt), 10);
 
       if (count > 0) {

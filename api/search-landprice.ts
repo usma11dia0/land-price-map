@@ -65,9 +65,9 @@ export default async function handler(
          OR m.city_name ILIKE ${searchPattern}
       ORDER BY m.prefecture_name, m.city_name
       LIMIT 20
-    `;
+    ` as Record<string, any>[];
 
-    const results = rows.map((row) => ({
+    const results = rows.map((row: Record<string, any>) => ({
       pointId: row.point_id,
       lat: row.lat,
       lon: row.lon,

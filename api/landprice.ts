@@ -60,7 +60,7 @@ interface ProbeState {
 async function getProbeState(): Promise<ProbeState> {
   try {
     const sql = getSQL();
-    const rows = await sql`SELECT * FROM api_freshness_state WHERE id = 1`;
+    const rows = await sql`SELECT * FROM api_freshness_state WHERE id = 1` as Record<string, any>[];
 
     if (rows.length === 0) {
       // 初期行がなければ作成
@@ -292,7 +292,7 @@ async function fetchFromDB(
 
     // mastersテーブルからタイル範囲のポイントを取得し、
     // yearlyテーブルから該当年度の価格を取得
-    let rows;
+    let rows: Record<string, any>[];
 
     if (classification !== undefined) {
       rows = await sql`
@@ -303,7 +303,7 @@ async function fetchFromDB(
         LEFT JOIN land_price_yearly y ON m.point_id = y.point_id AND y.year = ${year}
         WHERE m.tile_z = ${tileZ} AND m.tile_x = ${tileX} AND m.tile_y = ${tileY}
           AND m.price_classification = ${classification}
-      `;
+      ` as Record<string, any>[];
     } else {
       rows = await sql`
         SELECT
@@ -312,7 +312,7 @@ async function fetchFromDB(
         FROM land_price_masters m
         LEFT JOIN land_price_yearly y ON m.point_id = y.point_id AND y.year = ${year}
         WHERE m.tile_z = ${tileZ} AND m.tile_x = ${tileX} AND m.tile_y = ${tileY}
-      `;
+      ` as Record<string, any>[];
     }
 
     if (rows.length === 0) {
@@ -320,7 +320,7 @@ async function fetchFromDB(
     }
 
     // yearlyに該当年度のデータがない行は除外
-    const featuresWithData = rows.filter(row => row.price !== null);
+    const featuresWithData = rows.filter((row: Record<string, any>) => row.price !== null);
     if (featuresWithData.length === 0) {
       return null;
     }
