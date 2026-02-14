@@ -23,12 +23,8 @@ function initApp(): void {
   const urlState = getUrlState();
 
   // 地図を初期化（URLパラメータがあればその座標を使用）
+  // ※マーカーは配置しない（URLは地図中心位置の復元のみに使用）
   const map = initMap('map', urlState);
-
-  // URLに座標が指定されていればマーカーを配置
-  if (urlState.lat !== null && urlState.lon !== null) {
-    moveMarkerTo(urlState.lat, urlState.lon);
-  }
 
   // UI要素を初期化
   initUI();
