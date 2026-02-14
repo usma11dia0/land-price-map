@@ -97,6 +97,8 @@ export interface LandPriceFeature {
 export interface LandPriceApiResponse {
   type: 'FeatureCollection';
   features: LandPriceFeature[];
+  /** サーバーが検出した最新データ年度（プローブ機能による） */
+  latestYear?: number;
 }
 
 /**
@@ -190,4 +192,28 @@ export interface LandPriceControlState {
  */
 export interface LandPriceApiError {
   error: string;
+}
+
+/**
+ * 地名検索APIの結果項目
+ */
+export interface LandPriceSearchResult {
+  pointId: string;
+  lat: number;
+  lon: number;
+  placeName: string | null;
+  prefectureName: string | null;
+  cityName: string | null;
+  addressDisplay: string | null;
+  standardLotNumber: string | null;
+  priceClassification: number;
+  year: number;
+  currentPrice: string | null;
+}
+
+/**
+ * 地名検索APIのレスポンス
+ */
+export interface LandPriceSearchResponse {
+  results: LandPriceSearchResult[];
 }

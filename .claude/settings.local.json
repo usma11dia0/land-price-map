@@ -16,7 +16,11 @@
       "WebFetch(domain:www.chikamap.jp)",
       "WebFetch(domain:www.rosenka.nta.go.jp)",
       "WebFetch(domain:www.reinfolib.mlit.go.jp)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(wc:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm uninstall @vercel/postgres)"
     ]
   }
 }

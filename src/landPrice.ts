@@ -13,8 +13,19 @@ import type {
   TileCoordinate,
 } from './landPriceTypes.js';
 
-/** APIのズームレベル（13-15が有効） */
-const API_ZOOM_LEVEL = 15;
+/** APIのズームレベル（13が最適: ~4km×4kmのタイルサイズ、APIはz=13-15をサポート） */
+const API_ZOOM_LEVEL = 13;
+
+/** タイルデータのインメモリキャッシュ */
+const tileCache = new Map<string, LandPriceApiResponse>();
+
+/** 進行中のリクエスト（重複排除用） */
+const pendingRequests = new Map<string, Promise<LandPriceApiResponse | null>>();
+
+/** キャッシュキーを生成 */
+function tileCacheKey(z: number, x: number, y: number, year: number, classification?: PriceClassification): string {
+  return `${z}/${x}/${y}/${year}/${classification ?? 'all'}`;
+}
 
 /** 検索結果の上限件数 */
 export const MAX_SEARCH_RESULTS = 100;
@@ -83,7 +94,7 @@ export function calculateSearchBounds(
   const latRange = mapBounds.north - mapBounds.south;
   const lonRange = mapBounds.east - mapBounds.west;
 
-  const latOffset = latRange * 0.2; // 40%の半分
+  const latOffset = latRange * 0.3; // 縦幅を広めに（元は0.2）
   const lonOffset = lonRange * 0.2;
 
   return {
@@ -116,24 +127,64 @@ function cleanRatioValue(value: string | undefined): string {
 }
 
 /**
- * 最新年を取得
- * @returns 最新年（年度）
+ * サーバーから受け取った最新年度（プローブ機能で検出）
+ * 初期値は前年（安全なデフォルト）
  */
-function getLatestYear(): number {
-  const now = new Date();
-  // 地価公示は1月1日時点、3月に公表
-  // 都道府県地価調査は7月1日時点、9月に公表
-  // 安全のため前年を最新とする
-  return now.getFullYear() - 1;
+let _serverLatestYear: number = new Date().getFullYear() - 1;
+
+/**
+ * サーバーから受け取った最新年度を更新
+ */
+function updateServerLatestYear(year: number): void {
+  if (year > _serverLatestYear) {
+    _serverLatestYear = year;
+    console.log(`[landPrice] Latest year updated to ${year}`);
+  }
 }
 
 /**
- * 単一タイルのデータを取得
+ * 最新年を取得
+ * サーバーのプローブ機能が検出した最新年度を使用する。
+ * サーバーから未受信の場合は前年をデフォルトとする。
+ * @returns 最新年（年度）
+ */
+function getLatestYear(): number {
+  return _serverLatestYear;
+}
+
+/**
+ * fetchをリトライ付きで実行（エクスポネンシャルバックオフ）
+ * @param url URL
+ * @param maxRetries 最大リトライ回数
+ * @returns レスポンス
+ */
+async function fetchWithRetry(url: string, maxRetries: number = 3): Promise<Response> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await fetch(url);
+      if (response.ok || response.status < 500) {
+        return response;
+      }
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
+    // 待機: 500ms, 1000ms, 2000ms
+    if (attempt < maxRetries - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 500 * Math.pow(2, attempt)));
+    }
+  }
+  throw lastError || new Error('Fetch failed');
+}
+
+/**
+ * 単一タイルのデータを取得（キャッシュ・重複排除・リトライ付き）
  * @param tile タイル座標
  * @param year 年度
  * @param priceClassification 地価区分（指定しない場合は両方取得）
  * @returns APIレスポンス
- * 
+ *
  * 注意: ローカル開発時は `vercel dev` を使用してください。
  * 通常の http-server では CORS エラーが発生します。
  */
@@ -142,30 +193,59 @@ async function fetchTileData(
   year: number,
   priceClassification?: PriceClassification
 ): Promise<LandPriceApiResponse | null> {
-  // 常にプロキシAPI経由でアクセス（本番でも開発でも同じ）
-  // ローカル開発時は `vercel dev` を使用することで /api/landprice が動作する
-  const params = new URLSearchParams({
-    z: String(tile.z),
-    x: String(tile.x),
-    y: String(tile.y),
-    year: String(year),
-  });
-  if (priceClassification !== undefined) {
-    params.append('priceClassification', String(priceClassification));
-  }
-  const url = `/api/landprice?${params.toString()}`;
+  const cacheKey = tileCacheKey(tile.z, tile.x, tile.y, year, priceClassification);
 
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      console.error(`API error: ${response.status}`);
-      return null;
-    }
-    return await response.json();
-  } catch (error) {
-    console.error('Failed to fetch tile data:', error);
-    return null;
+  // キャッシュヒット
+  const cached = tileCache.get(cacheKey);
+  if (cached) {
+    return cached;
   }
+
+  // 同一リクエストが進行中の場合はそれを待つ（重複排除）
+  const pending = pendingRequests.get(cacheKey);
+  if (pending) {
+    return pending;
+  }
+
+  const promise = (async (): Promise<LandPriceApiResponse | null> => {
+    const params = new URLSearchParams({
+      z: String(tile.z),
+      x: String(tile.x),
+      y: String(tile.y),
+      year: String(year),
+    });
+    if (priceClassification !== undefined) {
+      params.append('priceClassification', String(priceClassification));
+    }
+    const url = `/api/landprice?${params.toString()}`;
+
+    try {
+      const response = await fetchWithRetry(url);
+      if (!response.ok) {
+        console.error(`API error: ${response.status}`);
+        return null;
+      }
+      const data: LandPriceApiResponse = await response.json();
+
+      // サーバーから最新年度を受け取ったら更新
+      if (data.latestYear) {
+        updateServerLatestYear(data.latestYear);
+      }
+
+      // キャッシュに保存
+      tileCache.set(cacheKey, data);
+
+      return data;
+    } catch (error) {
+      console.error('Failed to fetch tile data:', error);
+      return null;
+    } finally {
+      pendingRequests.delete(cacheKey);
+    }
+  })();
+
+  pendingRequests.set(cacheKey, promise);
+  return promise;
 }
 
 /**
@@ -380,5 +460,55 @@ export async function fetchPointPriceHistory(
   }
 
   return history;
+}
+
+/**
+ * 座標とpriceClassificationからLandPricePointを取得
+ * 登録地点から詳細表示する際に使用
+ * @param lat 緯度
+ * @param lon 経度
+ * @param priceClassification 地価区分
+ * @param pointId 地価ポイントID（あれば照合に使用）
+ * @returns LandPricePoint（見つからなければnull）
+ */
+export async function fetchLandPricePointByCoords(
+  lat: number,
+  lon: number,
+  priceClassification: PriceClassification,
+  pointId?: string
+): Promise<LandPricePoint | null> {
+  const latestYear = getLatestYear();
+  const tile = latLonToTile(lat, lon, API_ZOOM_LEVEL);
+
+  const data = await fetchTileData(tile, latestYear, priceClassification);
+  if (!data || !data.features) return null;
+
+  // pointIdがあれば完全一致で探す
+  if (pointId) {
+    for (const feature of data.features) {
+      if (String(feature.properties.point_id) === String(pointId)) {
+        return featureToLandPricePoint(feature, priceClassification);
+      }
+    }
+  }
+
+  // 最も近い地点を探す（距離の閾値: 約10m ≒ 0.0001度）
+  let closestFeature: LandPriceFeature | null = null;
+  let closestDist = Infinity;
+
+  for (const feature of data.features) {
+    const [fLon, fLat] = feature.geometry.coordinates;
+    const dist = Math.sqrt(Math.pow(fLat - lat, 2) + Math.pow(fLon - lon, 2));
+    if (dist < closestDist) {
+      closestDist = dist;
+      closestFeature = feature;
+    }
+  }
+
+  if (closestFeature && closestDist < 0.0005) {
+    return featureToLandPricePoint(closestFeature, priceClassification);
+  }
+
+  return null;
 }
 

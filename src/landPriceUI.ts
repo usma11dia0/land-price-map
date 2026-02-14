@@ -13,6 +13,19 @@ import {
 import { getMap, getMapCenter } from './map.js';
 import { openRegisterDialogFromLandPrice } from './savedLocationUI.js';
 
+/**
+ * SVGマップピンを生成（Googleマップ風ティアドロップ型）
+ * @param color ピンの色（hex）
+ * @returns SVG文字列
+ */
+export function createPinSVG(color: string): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 34" width="24" height="34">
+    <path d="M12 0C5.37 0 0 5.37 0 12c0 8.4 12 22 12 22s12-13.6 12-22C24 5.37 18.63 0 12 0z" fill="${color}" stroke="white" stroke-width="1.5"/>
+    <circle cx="12" cy="11.5" r="4.5" fill="white"/>
+  </svg>`;
+}
+
+
 /** Leaflet型の簡易定義 */
 declare const L: typeof import('leaflet');
 
@@ -345,11 +358,11 @@ function displaySearchBoundsRectangle(bounds: { north: number; south: number; ea
       [bounds.north, bounds.east],
     ],
     {
-      color: '#e74c3c',
-      weight: 3,
-      opacity: 0.8,
-      fillColor: '#e74c3c',
-      fillOpacity: 0.1,
+      color: '#4a90c4',
+      weight: 2.5,
+      opacity: 0.85,
+      fillColor: '#4a90c4',
+      fillOpacity: 0.05,
       dashArray: '8, 4',
     }
   ).addTo(map);
@@ -436,13 +449,14 @@ function displayLandPriceMarkers(points: LandPricePoint[]): void {
 function createLandPriceMarker(point: LandPricePoint): L.Marker {
   const isKoji = point.priceClassification === 0;
   const className = isKoji ? 'land-price-marker koji' : 'land-price-marker chosa';
+  const pinColor = isKoji ? '#e74c3c' : '#3498db';
 
-  // カスタムアイコンを作成
+  // カスタムアイコンを作成（SVGティアドロップ型ピン）
   const icon = L.divIcon({
     className: className,
-    html: `<div class="marker-icon"></div><div class="marker-label">${point.standardLotNumber}</div>`,
+    html: `<div class="marker-icon">${createPinSVG(pinColor)}</div><div class="marker-label">${point.standardLotNumber}</div>`,
     iconSize: [24, 34],
-    iconAnchor: [12, 17],
+    iconAnchor: [12, 34],
   });
 
   const marker = L.marker([point.lat, point.lon], { icon });
@@ -457,8 +471,9 @@ function createLandPriceMarker(point: LandPricePoint): L.Marker {
 
 /**
  * 地価情報パネルを開く（複数パネル対応）
+ * 登録地点UIからも呼び出せるようにエクスポート
  */
-function openLandPriceModal(point: LandPricePoint): void {
+export function openLandPriceModal(point: LandPricePoint): void {
   // 同じポイントのパネルが既に開いている場合は、そのパネルを前面に
   const existingPanel = openPanels.get(point.id);
   if (existingPanel) {
@@ -470,10 +485,13 @@ function openLandPriceModal(point: LandPricePoint): void {
   const panelId = `land-price-panel-${++panelCounter}`;
   const panel = createPanelElement(panelId, point);
   
-  // パネルの位置を設定（既存パネルとずらす）
+  // パネルの位置を設定
+  // 最初のパネルは左上（右側の地価情報・登録地点パネルと被らない位置）
+  // 2つ目以降は左にずらして配置
   const offset = openPanels.size * 30;
   panel.style.top = `${80 + offset}px`;
-  panel.style.right = `${20 + offset}px`;
+  panel.style.left = `${20 + offset}px`;
+  panel.style.right = 'auto';
 
   // DOMに追加
   document.body.appendChild(panel);

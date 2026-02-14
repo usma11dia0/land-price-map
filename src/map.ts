@@ -4,9 +4,26 @@
  */
 
 import type { SearchResult, Coordinates } from './types.js';
+import type { UrlState } from './urlState.js';
+import { updateUrlState } from './urlState.js';
 
 /** Leaflet型の簡易定義 */
 declare const L: typeof import('leaflet');
+
+/** 検索/クリック用マーカーの緑色SVGアイコン（小さめサイズ） */
+function createGreenPinIcon(): L.DivIcon {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 34" width="24" height="34">
+    <path d="M12 0C5.37 0 0 5.37 0 12c0 8.4 12 22 12 22s12-13.6 12-22C24 5.37 18.63 0 12 0z" fill="#2ecc71" stroke="white" stroke-width="1.5"/>
+    <circle cx="12" cy="11.5" r="4.5" fill="white"/>
+  </svg>`;
+  return L.divIcon({
+    className: 'search-pin-marker',
+    html: svg,
+    iconSize: [24, 34],
+    iconAnchor: [12, 34],
+    popupAnchor: [0, -34],
+  });
+}
 
 /** 登録地点UIからのインポート（遅延） */
 let openRegisterDialogFromMap: ((lat: number, lon: number) => void) | null = null;
@@ -16,6 +33,8 @@ let openRegisterDialogFromMap: ((lat: number, lon: number) => void) | null = nul
  */
 export function setRegisterDialogHandler(handler: (lat: number, lon: number) => void): void {
   openRegisterDialogFromMap = handler;
+  // ポップアップ内のボタンからも呼べるようにグローバルに公開
+  (window as unknown as Record<string, unknown>).__registerFromSearchMarker = handler;
 }
 
 /** 地図インスタンス */
@@ -39,13 +58,18 @@ const SEARCH_ZOOM = 17;
 /**
  * 地図を初期化
  * @param containerId 地図を表示するコンテナのID
+ * @param initialState URLパラメータから取得した初期状態（オプション）
  * @returns 地図インスタンス
  */
-export function initMap(containerId: string): L.Map {
+export function initMap(containerId: string, initialState?: UrlState): L.Map {
+  const initLat = initialState?.lat ?? DEFAULT_LOCATION.lat;
+  const initLon = initialState?.lon ?? DEFAULT_LOCATION.lon;
+  const initZoom = initialState?.zoom ?? DEFAULT_ZOOM;
+
   // 地図を初期化（デフォルトのズームコントロールを無効化）
   map = L.map(containerId, {
     zoomControl: false,
-  }).setView([DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lon], DEFAULT_ZOOM);
+  }).setView([initLat, initLon], initZoom);
 
   // 右下にズームコントロールを追加
   L.control
@@ -68,6 +92,12 @@ export function initMap(containerId: string): L.Map {
     if (openRegisterDialogFromMap) {
       openRegisterDialogFromMap(e.latlng.lat, e.latlng.lng);
     }
+  });
+
+  // 地図移動時にURLを更新
+  map.on('moveend', () => {
+    const center = map.getCenter();
+    updateUrlState(center.lat, center.lng, map.getZoom());
   });
 
   return map;
@@ -94,17 +124,16 @@ export function moveToSearchResult(result: SearchResult): void {
   // 地図を移動
   map.setView([result.lat, result.lon], SEARCH_ZOOM);
 
-  // 新しいマーカーを追加
-  searchMarker = L.marker([result.lat, result.lon]).addTo(map);
+  // 新しいマーカーを追加（緑色のカスタムピン）
+  searchMarker = L.marker([result.lat, result.lon], { icon: createGreenPinIcon() }).addTo(map);
   
-  // ポップアップにStreet Viewボタンを含める
   const popupContent = `
     <b>${result.name}</b><br>
     <small>${result.source}</small><br>
-    <button class="popup-streetview-btn" onclick="openStreetViewFromPopup()">
-      📷 この地点の写真を見る
-    </button>
     <small class="marker-hint">※ 地図をクリックでピン移動</small>
+    <div class="search-popup-actions">
+      <button class="search-popup-register-btn" onclick="window.__registerFromSearchMarker(${result.lat}, ${result.lon})">地点を登録</button>
+    </div>
   `;
   searchMarker.bindPopup(popupContent).openPopup();
 }
@@ -120,18 +149,28 @@ export function moveMarkerTo(lat: number, lon: number): void {
     map.removeLayer(searchMarker);
   }
 
-  // 新しいマーカーを追加
-  searchMarker = L.marker([lat, lon]).addTo(map);
+  // 新しいマーカーを追加（緑色のカスタムピン）
+  searchMarker = L.marker([lat, lon], { icon: createGreenPinIcon() }).addTo(map);
   
-  // ポップアップにStreet Viewボタンを含める
   const popupContent = `
     <b>選択した地点</b><br>
-    <button class="popup-streetview-btn" onclick="openStreetViewFromPopup()">
-      📷 この地点の写真を見る
-    </button>
     <small class="marker-hint">※ 地図をクリックでピン移動</small>
+    <div class="search-popup-actions">
+      <button class="search-popup-register-btn" onclick="window.__registerFromSearchMarker(${lat}, ${lon})">地点を登録</button>
+    </div>
   `;
   searchMarker.bindPopup(popupContent).openPopup();
+}
+
+/**
+ * 検索マーカーを削除
+ * 登録地点に登録された場合など、メインマーカーが不要になった時に呼び出す
+ */
+export function removeSearchMarker(): void {
+  if (searchMarker) {
+    map.removeLayer(searchMarker);
+    searchMarker = null;
+  }
 }
 
 /**

@@ -4,6 +4,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { checkRateLimit, getClientIp } from './_rateLimit.js';
 
 interface GoogleGeocodingResponse {
   status: string;
@@ -28,6 +29,9 @@ export default async function handler(
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+  // CDNキャッシュ
+  res.setHeader('Cache-Control', 'public, s-maxage=86400, stale-while-revalidate=86400');
+
   // OPTIONSリクエストの処理
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -37,6 +41,15 @@ export default async function handler(
   // GETリクエストのみ許可
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  // レート制限
+  const ip = getClientIp(req);
+  const rateCheck = checkRateLimit(ip, 30, 60000);
+  res.setHeader('X-RateLimit-Remaining', String(rateCheck.remaining));
+  if (!rateCheck.allowed) {
+    res.status(429).json({ error: 'Too many requests. Please try again later.' });
     return;
   }
 

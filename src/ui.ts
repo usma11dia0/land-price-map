@@ -5,27 +5,16 @@
 
 import type { SearchResult } from './types.js';
 import { getUsageData, getUsageLimit } from './storage.js';
-import { getCurrentMarkerPosition } from './map.js';
+
 
 /** DOM要素 */
 let settingsModal: HTMLElement;
-let streetViewModal: HTMLElement;
-let streetViewImage: HTMLImageElement;
-let streetViewLoading: HTMLElement;
-let streetViewError: HTMLElement;
-let streetViewDate: HTMLElement;
-let streetViewHeading: HTMLInputElement;
-let streetViewHeadingValue: HTMLElement;
 let usageCurrentEl: HTMLElement;
 let usageLimitEl: HTMLElement;
 let usageRemainingEl: HTMLElement;
 let usageTotalEl: HTMLElement;
 let usageBarFill: HTMLElement;
 let searchResultsEl: HTMLElement;
-
-/** 現在のStreet View座標 */
-let currentStreetViewLat: number = 0;
-let currentStreetViewLon: number = 0;
 
 /** 結果選択時のコールバック */
 let onResultSelectCallback: ((result: SearchResult) => void) | null = null;
@@ -35,13 +24,6 @@ let onResultSelectCallback: ((result: SearchResult) => void) | null = null;
  */
 export function initUI(): void {
   settingsModal = document.getElementById('settings-modal')!;
-  streetViewModal = document.getElementById('streetview-modal')!;
-  streetViewImage = document.getElementById('streetview-image') as HTMLImageElement;
-  streetViewLoading = document.getElementById('streetview-loading')!;
-  streetViewError = document.getElementById('streetview-error')!;
-  streetViewDate = document.getElementById('streetview-date')!;
-  streetViewHeading = document.getElementById('streetview-heading') as HTMLInputElement;
-  streetViewHeadingValue = document.getElementById('streetview-heading-value')!;
   usageCurrentEl = document.getElementById('usage-current')!;
   usageLimitEl = document.getElementById('usage-limit')!;
   usageRemainingEl = document.getElementById('usage-remaining')!;
@@ -53,15 +35,6 @@ export function initUI(): void {
   window.hideResults = hideSearchResults;
   window.selectResultByIndex = selectResultByIndex;
   window.closeSettingsModal = closeSettingsModal;
-  window.closeStreetViewModal = closeStreetViewModal;
-  window.openStreetViewFromPopup = openStreetViewModal;
-
-  // Street View方角スライダーのイベント
-  streetViewHeading.addEventListener('input', () => {
-    const heading = streetViewHeading.value;
-    streetViewHeadingValue.textContent = `${heading}°`;
-    updateStreetViewImage(Number(heading));
-  });
 }
 
 /**
@@ -77,155 +50,6 @@ export function openSettingsModal(): void {
  */
 export function closeSettingsModal(): void {
   settingsModal.classList.remove('show');
-}
-
-/**
- * ストリートビューモーダルを開く
- */
-export function openStreetViewModal(): void {
-  const position = getCurrentMarkerPosition();
-  currentStreetViewLat = position.lat;
-  currentStreetViewLon = position.lon;
-
-  // 初期状態をリセット
-  streetViewHeading.value = '0';
-  streetViewHeadingValue.textContent = '0°';
-  streetViewImage.style.display = 'none';
-  streetViewError.style.display = 'none';
-  streetViewDate.style.display = 'none';
-  streetViewLoading.style.display = 'block';
-
-  streetViewModal.classList.add('show');
-
-  // Street View画像を取得
-  loadStreetViewImage(0);
-}
-
-/**
- * ストリートビューモーダルを閉じる
- */
-export function closeStreetViewModal(): void {
-  streetViewModal.classList.remove('show');
-}
-
-/**
- * Street View画像を読み込む
- * @param heading 方角（0-360）
- */
-async function loadStreetViewImage(heading: number): Promise<void> {
-  const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
-  
-  try {
-    let captureDate: string | null = null;
-
-    if (isProduction) {
-      // 本番環境: Vercel Serverless Functionを使用
-      // まずメタデータをチェック
-      const metadataUrl = `/api/streetview-metadata?lat=${currentStreetViewLat}&lon=${currentStreetViewLon}`;
-      const metadataResponse = await fetch(metadataUrl);
-      const metadata = await metadataResponse.json();
-
-      if (metadata.status !== 'OK') {
-        // Street Viewが利用できない
-        streetViewLoading.style.display = 'none';
-        streetViewImage.style.display = 'none';
-        streetViewDate.style.display = 'none';
-        streetViewError.style.display = 'block';
-        return;
-      }
-
-      // 撮影日を取得（例: "2023-05" → "2023年5月"）
-      if (metadata.date) {
-        captureDate = formatCaptureDate(metadata.date);
-      }
-
-      // 画像を取得
-      const imageUrl = `/api/streetview?lat=${currentStreetViewLat}&lon=${currentStreetViewLon}&heading=${heading}`;
-      streetViewImage.src = imageUrl;
-    } else {
-      // 開発環境: 直接Google APIを使用
-      const { CONFIG } = await import('./config.js');
-      
-      // 開発環境でもメタデータを取得して撮影日を表示
-      const metadataUrl = `https://maps.googleapis.com/maps/api/streetview/metadata?location=${currentStreetViewLat},${currentStreetViewLon}&key=${CONFIG.GOOGLE_API_KEY}`;
-      const metadataResponse = await fetch(metadataUrl);
-      const metadata = await metadataResponse.json();
-      
-      if (metadata.status !== 'OK') {
-        streetViewLoading.style.display = 'none';
-        streetViewImage.style.display = 'none';
-        streetViewDate.style.display = 'none';
-        streetViewError.style.display = 'block';
-        return;
-      }
-
-      if (metadata.date) {
-        captureDate = formatCaptureDate(metadata.date);
-      }
-
-      const imageUrl = `https://maps.googleapis.com/maps/api/streetview?size=600x400&location=${currentStreetViewLat},${currentStreetViewLon}&heading=${heading}&key=${CONFIG.GOOGLE_API_KEY}`;
-      streetViewImage.src = imageUrl;
-    }
-
-    // 画像読み込み完了時
-    streetViewImage.onload = () => {
-      streetViewLoading.style.display = 'none';
-      streetViewError.style.display = 'none';
-      streetViewImage.style.display = 'block';
-      
-      // 撮影日を表示
-      if (captureDate) {
-        streetViewDate.textContent = `📅 ${captureDate}`;
-        streetViewDate.style.display = 'block';
-      }
-    };
-
-    // 画像読み込みエラー時
-    streetViewImage.onerror = () => {
-      streetViewLoading.style.display = 'none';
-      streetViewImage.style.display = 'none';
-      streetViewDate.style.display = 'none';
-      streetViewError.style.display = 'block';
-    };
-  } catch (error) {
-    console.error('Street View error:', error);
-    streetViewLoading.style.display = 'none';
-    streetViewImage.style.display = 'none';
-    streetViewDate.style.display = 'none';
-    streetViewError.style.display = 'block';
-  }
-}
-
-/**
- * 撮影日をフォーマット（例: "2023-05" → "2023年5月撮影"）
- * @param dateStr APIから返される日付文字列（YYYY-MM形式）
- * @returns フォーマットされた日付文字列
- */
-function formatCaptureDate(dateStr: string): string {
-  const parts = dateStr.split('-');
-  if (parts.length >= 2) {
-    const year = parts[0];
-    const month = parseInt(parts[1], 10);
-    return `${year}年${month}月撮影`;
-  }
-  return `${dateStr} 撮影`;
-}
-
-/**
- * Street View画像を更新（方角変更時）
- * @param heading 方角（0-360）
- */
-function updateStreetViewImage(heading: number): void {
-  // デバウンス処理のため、少し遅延させて画像を更新
-  const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
-  
-  if (isProduction) {
-    streetViewImage.src = `/api/streetview?lat=${currentStreetViewLat}&lon=${currentStreetViewLon}&heading=${heading}`;
-  } else {
-    import('./config.js').then(({ CONFIG }) => {
-      streetViewImage.src = `https://maps.googleapis.com/maps/api/streetview?size=600x400&location=${currentStreetViewLat},${currentStreetViewLon}&heading=${heading}&key=${CONFIG.GOOGLE_API_KEY}`;
-    });
-  }
 }
 
 /**
@@ -349,84 +173,13 @@ export function setupModalEventListeners(): void {
     }
   });
 
-  // ストリートビューモーダル背景クリックで閉じる
-  streetViewModal.addEventListener('click', (e) => {
-    if (e.target === streetViewModal) {
-      closeStreetViewModal();
-    }
-  });
-
   // ESCキーでモーダルを閉じる
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       if (settingsModal.classList.contains('show')) {
         closeSettingsModal();
       }
-      if (streetViewModal.classList.contains('show')) {
-        closeStreetViewModal();
-      }
     }
   });
 }
 
-/**
- * 外部リンクボタンのイベントリスナーを設定
- */
-export function setupExternalLinkButtons(): void {
-  const btnChikamap = document.getElementById('btn-chikamap')!;
-  const btnGoogleMaps = document.getElementById('btn-google-maps')!;
-
-  // 固定資産税路線価（全国地価マップ）
-  btnChikamap.addEventListener('click', () => {
-    openExternalLink('chikamap');
-  });
-
-  // Googleマップ
-  btnGoogleMaps.addEventListener('click', () => {
-    openExternalLink('google-maps');
-  });
-}
-
-/**
- * WGS84座標を日本測地系（Tokyo Datum）に変換
- * 全国地価マップは日本測地系を使用している可能性があるため
- * @param lat WGS84緯度
- * @param lon WGS84経度
- * @returns 日本測地系の座標
- */
-function convertWGS84ToTokyo(lat: number, lon: number): { lat: number; lon: number } {
-  // 国土地理院の簡易変換式（逆変換）
-  // 参考: https://www.gsi.go.jp/LAW/G2000-g2000faq-1.htm
-  const latTokyo = lat + lat * 0.00010695 - lon * 0.000017464 - 0.0046017;
-  const lonTokyo = lon + lat * 0.000046038 + lon * 0.000083043 - 0.010040;
-  return { lat: latTokyo, lon: lonTokyo };
-}
-
-/**
- * 外部サイトを新しいタブで開く
- * @param site サイト識別子
- */
-function openExternalLink(site: 'chikamap' | 'google-maps'): void {
-  const position = getCurrentMarkerPosition();
-  let url: string;
-
-  switch (site) {
-    case 'chikamap':
-      // 全国地価マップ（固定資産税路線価）
-      // mid=325: 固定資産税路線価, mpx: 経度, mpy: 緯度, mps: スケール（大きいほどズームイン）
-      // 全国地価マップは日本測地系を使用している可能性があるため変換を適用
-      const tokyoCoord = convertWGS84ToTokyo(position.lat, position.lon);
-      url = `https://www.chikamap.jp/chikamap/Map?mid=325&mpx=${tokyoCoord.lon.toFixed(6)}&mpy=${tokyoCoord.lat.toFixed(6)}&mps=1000`;
-      break;
-
-    case 'google-maps':
-      // Googleマップ（query形式でピンを表示）
-      url = `https://www.google.com/maps?q=${position.lat.toFixed(6)},${position.lon.toFixed(6)}`;
-      break;
-
-    default:
-      return;
-  }
-
-  window.open(url, '_blank', 'noopener,noreferrer');
-}

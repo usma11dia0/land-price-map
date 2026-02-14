@@ -10,8 +10,35 @@ import type {
   GoogleGeocodingResponse,
   GooglePlacesResponse,
 } from './types.js';
+import type { LandPriceSearchResponse } from './landPriceTypes.js';
 import { CONFIG } from './config.js';
 import { canUseApi, incrementUsage } from './storage.js';
+
+/**
+ * fetchをリトライ付きで実行（エクスポネンシャルバックオフ）
+ */
+async function fetchWithRetry(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  maxRetries: number = 3
+): Promise<Response> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await fetch(input, init);
+      if (response.ok || response.status < 500) {
+        return response;
+      }
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
+    if (attempt < maxRetries - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 500 * Math.pow(2, attempt)));
+    }
+  }
+  throw lastError || new Error('Fetch failed');
+}
 
 /**
  * 本番環境かどうかを判定
@@ -81,7 +108,7 @@ export async function searchWithGoogle(address: string): Promise<SearchResult[]>
     url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}&language=ja&region=jp`;
   }
 
-  const response = await fetch(url);
+  const response = await fetchWithRetry(url);
   const data: GoogleGeocodingResponse = await response.json();
 
   // ステータスチェック
@@ -139,7 +166,7 @@ export async function searchWithPlaces(query: string): Promise<SearchResult[]> {
   if (isProduction()) {
     // 本番環境: Vercel Serverless Function経由
     const url = `/api/places?query=${encodeURIComponent(query)}`;
-    const response = await fetch(url);
+    const response = await fetchWithRetry(url);
     data = await response.json();
   } else {
     // 開発環境: 直接Google API呼び出し
@@ -239,15 +266,66 @@ export async function searchWithNominatim(address: string): Promise<SearchResult
 }
 
 /**
+ * DB内の地価ポイントを地名で検索
+ * @param query 検索クエリ
+ * @returns 検索結果の配列
+ */
+export async function searchLandPriceByName(query: string): Promise<SearchResult[]> {
+  try {
+    const url = `/api/search-landprice?q=${encodeURIComponent(query)}`;
+    const response = await fetch(url);
+    const data: LandPriceSearchResponse = await response.json();
+
+    if (!data.results || data.results.length === 0) {
+      return [];
+    }
+
+    return data.results.map((item) => {
+      const parts: string[] = [];
+      if (item.standardLotNumber) parts.push(item.standardLotNumber);
+      if (item.cityName) parts.push(item.cityName);
+      if (item.currentPrice) parts.push(`${item.currentPrice}円/㎡`);
+
+      const name = parts.length > 0 ? parts.join(' - ') : `地価ポイント (${item.lat.toFixed(5)}, ${item.lon.toFixed(5)})`;
+
+      return {
+        name,
+        lat: item.lat,
+        lon: item.lon,
+        source: '地価データベース',
+      };
+    });
+  } catch (error) {
+    console.log('地価データベース検索エラー:', error);
+    return [];
+  }
+}
+
+/**
  * 住所または施設名を検索
  * 住所の場合: Google Geocoding API > 国土地理院API > Nominatim API
- * 施設名の場合: Google Places API > Google Geocoding API > 国土地理院API
+ * 施設名の場合: 地価DB > Google Places API > Google Geocoding API > 国土地理院API
  * @param query 検索するクエリ（住所または施設名）
  * @returns 検索結果の配列
  */
 export async function searchAddress(query: string): Promise<SearchResult[]> {
   const isAddress = isAddressQuery(query);
   console.log(`検索クエリ "${query}" は${isAddress ? '住所' : '施設名'}として判定`);
+
+  // まずDB内の地価ポイントを検索
+  try {
+    console.log('地価データベースで検索中...');
+    const landPriceResults = await searchLandPriceByName(query);
+    if (landPriceResults.length > 0) {
+      console.log('地価データベースの結果:', landPriceResults.length, '件');
+      // 地価DBの結果と住所検索の結果を統合する場合もあるが、
+      // 地価DBに結果があればそれを優先して返す
+      return landPriceResults;
+    }
+    console.log('地価データベース: 結果なし');
+  } catch (error) {
+    console.log('地価データベース検索エラー - 住所検索にフォールバック');
+  }
 
   // 施設名の場合: まずPlaces APIで検索
   if (!isAddress) {

@@ -33,6 +33,33 @@ export function initSearch(): void {
 
   // 地図クリック時に結果一覧を閉じる
   onMapClick(hideSearchResults);
+
+  // 右パネルにホバーで検索結果を非表示にする
+  const landPriceControl = document.getElementById('land-price-control');
+  const savedLocationPanel = document.getElementById('saved-location-panel');
+  const searchResultsEl = document.getElementById('search-results');
+
+  if (landPriceControl) {
+    landPriceControl.addEventListener('mouseenter', () => {
+      if (searchResultsEl?.classList.contains('show')) {
+        searchResultsEl.classList.add('hover-hidden');
+      }
+    });
+    landPriceControl.addEventListener('mouseleave', () => {
+      searchResultsEl?.classList.remove('hover-hidden');
+    });
+  }
+
+  if (savedLocationPanel) {
+    savedLocationPanel.addEventListener('mouseenter', () => {
+      if (searchResultsEl?.classList.contains('show')) {
+        searchResultsEl.classList.add('hover-hidden');
+      }
+    });
+    savedLocationPanel.addEventListener('mouseleave', () => {
+      searchResultsEl?.classList.remove('hover-hidden');
+    });
+  }
 }
 
 /**

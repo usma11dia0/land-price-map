@@ -11,7 +11,9 @@ import {
   updateSavedLocation,
   removeSavedLocation,
 } from './savedLocationStorage.js';
-import { getMap, setRegisterDialogHandler } from './map.js';
+import { getMap, setRegisterDialogHandler, removeSearchMarker } from './map.js';
+import { fetchLandPricePointByCoords } from './landPrice.js';
+import { openLandPriceModal, createPinSVG } from './landPriceUI.js';
 
 /** Leaflet型の簡易定義 */
 declare const L: typeof import('leaflet');
@@ -69,6 +71,7 @@ export function initSavedLocationUI(): void {
   window.removeSavedLocationFromList = removeSavedLocationFromList;
   window.goToSavedLocation = goToSavedLocation;
   window.editSavedLocation = editSavedLocation;
+  window.showSavedLocationDetail = showSavedLocationDetail;
 
   // 右クリックでカスタムマーカー追加のハンドラを設定
   setRegisterDialogHandler(openRegisterDialogFromMap);
@@ -165,10 +168,10 @@ function createSavedLocationMarker(location: SavedLocation): L.Marker {
   // 表示名：マーカー名（name）を使用
   const displayName = location.name;
   
-  // カスタムアイコンを作成（地価マーカーと同じ形式）
+  // カスタムアイコンを作成（SVGティアドロップ型ピン、地価マーカーと統一デザイン）
   const icon = L.divIcon({
     className: 'saved-location-marker',
-    html: `<div class="marker-icon" style="--marker-color: ${location.color};"></div><div class="marker-label">${escapeHtml(displayName)}</div>`,
+    html: `<div class="marker-icon">${createPinSVG(location.color)}</div><div class="marker-label">${escapeHtml(displayName)}</div>`,
     iconSize: [24, 34],
     iconAnchor: [12, 34],
   });
@@ -203,6 +206,14 @@ function createPopupContent(location: SavedLocation): string {
 
   if (location.memo) {
     content += `<div class="popup-memo">${escapeHtml(location.memo)}</div>`;
+  }
+
+  if (location.type === 'landprice' && location.landPriceData) {
+    content += `
+      <div class="popup-actions">
+        <button onclick="showSavedLocationDetail('${location.id}')" class="popup-btn popup-btn-primary">詳細表示</button>
+      </div>
+    `;
   }
 
   content += `
@@ -241,7 +252,7 @@ function updateLocationList(): void {
     return `
     <div class="saved-location-item" data-id="${location.id}">
       <div class="saved-location-color" style="background-color: ${location.color};"></div>
-      <div class="saved-location-info" onclick="editSavedLocation('${location.id}')">
+      <div class="saved-location-info" onclick="goToSavedLocation('${location.id}')">
         <div class="saved-location-name">${escapeHtml(displayName)}</div>
         ${detailText ? `<div class="saved-location-detail">${escapeHtml(detailText)}</div>` : ''}
       </div>
@@ -433,6 +444,9 @@ export function submitRegisterDialog(): void {
       landPriceData: pendingLocationData.landPriceData,
     });
 
+    // 検索マーカー（青ピン）を削除して登録地点マーカーに置き換え
+    removeSearchMarker();
+
     // マーカーを追加
     addMarkerToMap(newLocation);
 
@@ -475,12 +489,49 @@ export function goToSavedLocation(id: string): void {
   if (!location) return;
 
   const map = getMap();
-  map.setView([location.lat, location.lon], 17);
+  // 現在のズームレベルが低い場合は17に、高い場合は維持
+  const currentZoom = map.getZoom();
+  const targetZoom = currentZoom < 16 ? 17 : currentZoom;
+  map.setView([location.lat, location.lon], targetZoom, { animate: true });
 
   // マーカーのポップアップを開く
   const marker = markerMap.get(id);
   if (marker) {
-    marker.openPopup();
+    // setView完了後にポップアップを開く
+    setTimeout(() => marker.openPopup(), 300);
+  }
+}
+
+/**
+ * 登録地点の地価詳細を表示
+ * 地価マーカーをクリックしたときと同じ詳細パネルを開く
+ */
+export async function showSavedLocationDetail(id: string): Promise<void> {
+  const locations = getSavedLocations();
+  const location = locations.find((loc) => loc.id === id);
+
+  if (!location || location.type !== 'landprice' || !location.landPriceData) {
+    return;
+  }
+
+  // ポップアップを閉じる
+  const marker = markerMap.get(id);
+  if (marker) {
+    marker.closePopup();
+  }
+
+  // 座標とpriceClassificationから地価ポイントデータを取得
+  const point = await fetchLandPricePointByCoords(
+    location.lat,
+    location.lon,
+    location.landPriceData.priceClassification as 0 | 1,
+    undefined
+  );
+
+  if (point) {
+    openLandPriceModal(point);
+  } else {
+    alert('この地点の詳細データを取得できませんでした。\n地価情報の検索範囲外の可能性があります。');
   }
 }
 
@@ -504,5 +555,6 @@ declare global {
     removeSavedLocationFromList?: (id: string) => void;
     goToSavedLocation?: (id: string) => void;
     editSavedLocation?: (id: string) => void;
+    showSavedLocationDetail?: (id: string) => void;
   }
 }
