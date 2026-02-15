@@ -108,10 +108,12 @@ export function showSearchResults(
     return;
   }
 
-  // 住所検索（Google Geocoding/国土地理院）で1件の場合は直接選択
-  // 施設検索（Google Places）の場合は1件でも候補リストを表示（位置確認のため）
-  const isPlacesResult = results.some((r) => r.source === 'Google Places');
-  if (results.length === 1 && !isPlacesResult) {
+  // 住所検索（Google Geocoding/国土地理院のみ）で1件の場合は直接選択
+  // 施設検索（Places/Nominatim/複数ソース混在）の場合は1件でも候補リストを表示
+  const isFacilitySearch = results.some(
+    (r) => r.source === 'Google Places' || r.source === 'OpenStreetMap'
+  );
+  if (results.length === 1 && !isFacilitySearch) {
     onSelect(results[0]);
     return;
   }

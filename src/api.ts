@@ -389,7 +389,7 @@ export async function searchAddress(query: string): Promise<SearchResult[]> {
 
   // ──────────────────────────────────────────────
   // 施設名の場合: Places + Nominatim を並列実行して統合
-  // （Google APIは Places 1回のみ、Nominatim は無料）
+  // Places が 0件の場合は Geocoding API で補完
   // ※ GSI（国土地理院）は住所検索用のため施設名検索には使用しない
   // ──────────────────────────────────────────────
   if (!isAddress) {
@@ -403,16 +403,30 @@ export async function searchAddress(query: string): Promise<SearchResult[]> {
       searchWithNominatim(query).catch(() => [] as SearchResult[]),
     ]);
 
-    const allResults: SearchResult[] = [];
+    const placesResults: SearchResult[] =
+      placesResult.status === 'fulfilled' ? placesResult.value : [];
+    const nominatimResults: SearchResult[] =
+      nominatimResult.status === 'fulfilled' ? nominatimResult.value : [];
 
-    if (placesResult.status === 'fulfilled') {
-      console.log('Google Places API:', placesResult.value.length, '件');
-      allResults.push(...placesResult.value);
+    console.log('Google Places API:', placesResults.length, '件');
+    console.log('Nominatim API:', nominatimResults.length, '件');
+
+    // Places が 0件の場合: Geocoding API で補完
+    // （漢字→ひらがな等の曖昧検索はGoogleが内部で処理してくれる）
+    let geocodingResults: SearchResult[] = [];
+    if (placesResults.length === 0) {
+      console.log('Places 0件 → Geocoding APIで補完検索...');
+      try {
+        geocodingResults = await searchWithGoogle(query);
+        console.log('Google Geocoding API:', geocodingResults.length, '件');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.log('Google Geocoding APIエラー:', errorMessage);
+      }
     }
-    if (nominatimResult.status === 'fulfilled') {
-      console.log('Nominatim API:', nominatimResult.value.length, '件');
-      allResults.push(...nominatimResult.value);
-    }
+
+    // 全結果を統合（優先度: Places > Geocoding > Nominatim）
+    const allResults = [...placesResults, ...geocodingResults, ...nominatimResults];
 
     if (allResults.length > 0) {
       const merged = mergeAndDeduplicateResults(allResults);
@@ -420,19 +434,7 @@ export async function searchAddress(query: string): Promise<SearchResult[]> {
       return merged;
     }
 
-    // 全て0件の場合: Geocoding APIにフォールバック
-    console.log('全API 0件 - Geocoding APIにフォールバック');
-    try {
-      const googleResults = await searchWithGoogle(query);
-      if (googleResults.length > 0) {
-        console.log('Google Geocoding APIの結果:', googleResults.length, '件');
-        return googleResults;
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.log('Google Geocoding APIエラー:', errorMessage);
-    }
-
+    console.log('全API 0件');
     return [];
   }
 
