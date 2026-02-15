@@ -302,9 +302,71 @@ export async function searchLandPriceByName(query: string): Promise<SearchResult
 }
 
 /**
+ * 2つの座標間の距離（メートル）を簡易計算（ハバーサイン近似）
+ */
+function distanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000; // 地球の半径（メートル）
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * 複数APIの検索結果を統合し、近接する重複を除去
+ * Google系の結果を優先し、200m以内の結果は1つにまとめる
+ * @param results 複数APIの結果を結合した配列
+ * @returns 重複除去後の配列（最大10件）
+ */
+function mergeAndDeduplicateResults(results: SearchResult[]): SearchResult[] {
+  if (results.length === 0) return [];
+
+  // ソース優先度: Google Places > Google > 国土地理院 > OpenStreetMap > 地価DB
+  const sourcePriority: Record<string, number> = {
+    'Google Places': 1,
+    'Google': 2,
+    '国土地理院': 3,
+    'OpenStreetMap': 4,
+    '地価データベース': 5,
+  };
+
+  // 優先度順にソート
+  const sorted = [...results].sort(
+    (a, b) => (sourcePriority[a.source] || 99) - (sourcePriority[b.source] || 99)
+  );
+
+  const merged: SearchResult[] = [];
+  const DEDUP_RADIUS_METERS = 200;
+
+  for (const result of sorted) {
+    // 既に追加済みの結果と200m以内かチェック
+    const isDuplicate = merged.some(
+      (existing) => distanceMeters(existing.lat, existing.lon, result.lat, result.lon) < DEDUP_RADIUS_METERS
+    );
+
+    if (!isDuplicate) {
+      merged.push(result);
+    }
+  }
+
+  return merged.slice(0, 10);
+}
+
+/**
  * 住所または施設名を検索
- * 住所の場合: Google Geocoding API > 国土地理院API > Nominatim API
- * 施設名の場合: 地価DB > Google Places API > Google Geocoding API > 国土地理院API
+ *
+ * 住所の場合:
+ *   Google Geocoding API → 国土地理院API → Nominatim API（順次フォールバック）
+ *
+ * 施設名の場合:
+ *   地価DB → [Places API + GSI + Nominatim を並列実行して統合]
+ *   → 全て0件なら Geocoding API にフォールバック
+ *
  * @param query 検索するクエリ（住所または施設名）
  * @returns 検索結果の配列
  */
@@ -318,8 +380,6 @@ export async function searchAddress(query: string): Promise<SearchResult[]> {
     const landPriceResults = await searchLandPriceByName(query);
     if (landPriceResults.length > 0) {
       console.log('地価データベースの結果:', landPriceResults.length, '件');
-      // 地価DBの結果と住所検索の結果を統合する場合もあるが、
-      // 地価DBに結果があればそれを優先して返す
       return landPriceResults;
     }
     console.log('地価データベース: 結果なし');
@@ -327,23 +387,62 @@ export async function searchAddress(query: string): Promise<SearchResult[]> {
     console.log('地価データベース検索エラー - 住所検索にフォールバック');
   }
 
-  // 施設名の場合: まずPlaces APIで検索
+  // ──────────────────────────────────────────────
+  // 施設名の場合: Places + GSI + Nominatim を並列実行して統合
+  // （Google APIは Places 1回のみ、GSI/Nominatim は無料）
+  // ──────────────────────────────────────────────
   if (!isAddress) {
+    console.log('施設名検索: Places + GSI + Nominatim を並列実行...');
+
+    const [placesResult, gsiResult, nominatimResult] = await Promise.allSettled([
+      searchWithPlaces(query).catch((err) => {
+        console.log('Places APIエラー:', err instanceof Error ? err.message : err);
+        return [] as SearchResult[];
+      }),
+      searchWithGSI(query).catch(() => [] as SearchResult[]),
+      searchWithNominatim(query).catch(() => [] as SearchResult[]),
+    ]);
+
+    const allResults: SearchResult[] = [];
+
+    if (placesResult.status === 'fulfilled') {
+      console.log('Google Places API:', placesResult.value.length, '件');
+      allResults.push(...placesResult.value);
+    }
+    if (gsiResult.status === 'fulfilled') {
+      console.log('国土地理院API:', gsiResult.value.length, '件');
+      allResults.push(...gsiResult.value);
+    }
+    if (nominatimResult.status === 'fulfilled') {
+      console.log('Nominatim API:', nominatimResult.value.length, '件');
+      allResults.push(...nominatimResult.value);
+    }
+
+    if (allResults.length > 0) {
+      const merged = mergeAndDeduplicateResults(allResults);
+      console.log('統合結果:', merged.length, '件');
+      return merged;
+    }
+
+    // 全て0件の場合: Geocoding APIにフォールバック
+    console.log('全API 0件 - Geocoding APIにフォールバック');
     try {
-      console.log('Google Places APIで検索中...');
-      const placesResults = await searchWithPlaces(query);
-      if (placesResults.length > 0) {
-        console.log('Google Places APIの結果:', placesResults.length, '件');
-        return placesResults;
+      const googleResults = await searchWithGoogle(query);
+      if (googleResults.length > 0) {
+        console.log('Google Geocoding APIの結果:', googleResults.length, '件');
+        return googleResults;
       }
-      console.log('Google Places API: 結果なし');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.log('Google Places APIエラー:', errorMessage, '- Geocoding APIにフォールバック');
+      console.log('Google Geocoding APIエラー:', errorMessage);
     }
+
+    return [];
   }
 
-  // 住所の場合、またはPlaces APIで結果がない場合: Geocoding APIで検索
+  // ──────────────────────────────────────────────
+  // 住所の場合: 従来通り順次フォールバック
+  // ──────────────────────────────────────────────
   try {
     console.log('Google Geocoding APIで検索中...');
     const googleResults = await searchWithGoogle(query);
@@ -357,7 +456,6 @@ export async function searchAddress(query: string): Promise<SearchResult[]> {
     console.log('Google Geocoding APIエラー:', errorMessage, '- フォールバックします');
   }
 
-  // 国土地理院APIで検索
   try {
     console.log('国土地理院APIで検索中...');
     const gsiResults = await searchWithGSI(query);
@@ -370,7 +468,6 @@ export async function searchAddress(query: string): Promise<SearchResult[]> {
     console.log('国土地理院APIエラー - Nominatimにフォールバックします');
   }
 
-  // 最終手段: Nominatim APIで検索
   try {
     console.log('Nominatim APIで検索中...');
     const nominatimResults = await searchWithNominatim(query);
