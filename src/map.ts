@@ -130,12 +130,19 @@ export function moveToSearchResult(result: SearchResult): void {
   const popupContent = `
     <b>${result.name}</b><br>
     <small>${result.source}</small><br>
-    <small class="marker-hint">※ 地図をクリックでピン移動</small>
+    <small class="marker-hint">※ 地図を${isMobile() ? 'タップ' : 'クリック'}でピン移動</small>
     <div class="search-popup-actions">
       <button class="search-popup-register-btn" onclick="window.__registerFromSearchMarker(${result.lat}, ${result.lon})">地点を登録</button>
     </div>
   `;
   searchMarker.bindPopup(popupContent).openPopup();
+}
+
+/**
+ * モバイル端末かどうかを判定
+ */
+function isMobile(): boolean {
+  return window.innerWidth <= 768;
 }
 
 /**
@@ -151,10 +158,10 @@ export function moveMarkerTo(lat: number, lon: number): void {
 
   // 新しいマーカーを追加（緑色のカスタムピン）
   searchMarker = L.marker([lat, lon], { icon: createGreenPinIcon() }).addTo(map);
-  
+
   const popupContent = `
     <b>選択した地点</b><br>
-    <small class="marker-hint">※ 地図をクリックでピン移動</small>
+    <small class="marker-hint">※ 地図を${isMobile() ? 'タップ' : 'クリック'}でピン移動</small>
     <div class="search-popup-actions">
       <button class="search-popup-register-btn" onclick="window.__registerFromSearchMarker(${lat}, ${lon})">地点を登録</button>
     </div>

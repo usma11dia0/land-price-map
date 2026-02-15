@@ -234,7 +234,7 @@ function updateLocationList(): void {
   const locations = getSavedLocations();
   
   if (locations.length === 0) {
-    savedLocationList.innerHTML = '<div class="saved-location-empty">右クリックで地点を登録</div>';
+    savedLocationList.innerHTML = '';
     return;
   }
 
@@ -489,10 +489,8 @@ export function goToSavedLocation(id: string): void {
   if (!location) return;
 
   const map = getMap();
-  // 現在のズームレベルが低い場合は17に、高い場合は維持
-  const currentZoom = map.getZoom();
-  const targetZoom = currentZoom < 16 ? 17 : currentZoom;
-  map.setView([location.lat, location.lon], targetZoom, { animate: true });
+  // 現在のズームレベルを維持したまま地点に移動
+  map.setView([location.lat, location.lon], map.getZoom(), { animate: true });
 
   // マーカーのポップアップを開く
   const marker = markerMap.get(id);
