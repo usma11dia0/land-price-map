@@ -364,7 +364,7 @@ function mergeAndDeduplicateResults(results: SearchResult[]): SearchResult[] {
  *   Google Geocoding API → 国土地理院API → Nominatim API（順次フォールバック）
  *
  * 施設名の場合:
- *   地価DB → [Places API + GSI + Nominatim を並列実行して統合]
+ *   地価DB → [Places API + Nominatim を並列実行して統合]
  *   → 全て0件なら Geocoding API にフォールバック
  *
  * @param query 検索するクエリ（住所または施設名）
@@ -388,18 +388,18 @@ export async function searchAddress(query: string): Promise<SearchResult[]> {
   }
 
   // ──────────────────────────────────────────────
-  // 施設名の場合: Places + GSI + Nominatim を並列実行して統合
-  // （Google APIは Places 1回のみ、GSI/Nominatim は無料）
+  // 施設名の場合: Places + Nominatim を並列実行して統合
+  // （Google APIは Places 1回のみ、Nominatim は無料）
+  // ※ GSI（国土地理院）は住所検索用のため施設名検索には使用しない
   // ──────────────────────────────────────────────
   if (!isAddress) {
-    console.log('施設名検索: Places + GSI + Nominatim を並列実行...');
+    console.log('施設名検索: Places + Nominatim を並列実行...');
 
-    const [placesResult, gsiResult, nominatimResult] = await Promise.allSettled([
+    const [placesResult, nominatimResult] = await Promise.allSettled([
       searchWithPlaces(query).catch((err) => {
         console.log('Places APIエラー:', err instanceof Error ? err.message : err);
         return [] as SearchResult[];
       }),
-      searchWithGSI(query).catch(() => [] as SearchResult[]),
       searchWithNominatim(query).catch(() => [] as SearchResult[]),
     ]);
 
@@ -408,10 +408,6 @@ export async function searchAddress(query: string): Promise<SearchResult[]> {
     if (placesResult.status === 'fulfilled') {
       console.log('Google Places API:', placesResult.value.length, '件');
       allResults.push(...placesResult.value);
-    }
-    if (gsiResult.status === 'fulfilled') {
-      console.log('国土地理院API:', gsiResult.value.length, '件');
-      allResults.push(...gsiResult.value);
     }
     if (nominatimResult.status === 'fulfilled') {
       console.log('Nominatim API:', nominatimResult.value.length, '件');
