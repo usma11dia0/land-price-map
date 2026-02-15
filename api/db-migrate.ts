@@ -25,9 +25,9 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
-  // 管理者認証（REINFOLIB_API_KEYを認証キーとして兼用）
-  const authKey = req.query.key || req.headers['x-api-key'];
-  const expectedKey = process.env.REINFOLIB_API_KEY;
+  // 管理者認証（専用の ADMIN_SECRET を使用）
+  const authKey = req.headers['x-admin-secret'] || req.query.key;
+  const expectedKey = process.env.ADMIN_SECRET;
 
   if (!expectedKey || authKey !== expectedKey) {
     res.status(401).json({ error: 'Unauthorized' });
@@ -207,6 +207,7 @@ export default async function handler(
     });
   } catch (error) {
     console.error('Migration error:', error);
-    res.status(500).json({ error: 'Migration failed', details: String(error) });
+    // 本番環境ではエラー詳細を返さない（ログにのみ記録）
+    res.status(500).json({ error: 'Migration failed' });
   }
 }

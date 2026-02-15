@@ -7,6 +7,21 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { neon } from '@neondatabase/serverless';
+import { checkRateLimit, getClientIp } from './_rateLimit.js';
+
+/** 許可するオリジン一覧 */
+const ALLOWED_ORIGINS = [
+  'https://land-price-map.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:8080',
+];
+
+function getAllowedOrigin(req: VercelRequest): string {
+  const origin = req.headers.origin || '';
+  if (ALLOWED_ORIGINS.includes(origin)) return origin;
+  if (origin.endsWith('.vercel.app')) return origin;
+  return ALLOWED_ORIGINS[0];
+}
 
 const getDatabaseUrl = () => process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
 
@@ -21,9 +36,12 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // CORSヘッダー（許可されたオリジンのみ）
+  const allowedOrigin = getAllowedOrigin(req);
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Vary', 'Origin');
   res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
 
   if (req.method === 'OPTIONS') {
@@ -36,6 +54,15 @@ export default async function handler(
     return;
   }
 
+  // レート制限（60秒あたり30リクエスト/IP）
+  const ip = getClientIp(req);
+  const rateCheck = checkRateLimit(ip, 30, 60000);
+  res.setHeader('X-RateLimit-Remaining', String(rateCheck.remaining));
+  if (!rateCheck.allowed) {
+    res.status(429).json({ error: 'Too many requests. Please try again later.' });
+    return;
+  }
+
   const { q } = req.query;
 
   if (!q || typeof q !== 'string' || q.trim().length === 0) {
@@ -44,6 +71,12 @@ export default async function handler(
   }
 
   const query = q.trim();
+
+  // 入力長制限（DoS対策）
+  if (query.length > 100) {
+    res.status(400).json({ error: 'Query too long (max 100 characters)' });
+    return;
+  }
   const searchPattern = `%${query}%`;
 
   try {

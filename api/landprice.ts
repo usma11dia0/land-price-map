@@ -15,6 +15,23 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { neon } from '@neondatabase/serverless';
+import { checkRateLimit, getClientIp } from './_rateLimit.js';
+
+/** 許可するオリジン一覧 */
+const ALLOWED_ORIGINS = [
+  'https://land-price-map.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:8080',
+];
+
+/** リクエスト元のOriginを検証し、許可されたOriginを返す */
+function getAllowedOrigin(req: VercelRequest): string {
+  const origin = req.headers.origin || '';
+  if (ALLOWED_ORIGINS.includes(origin)) return origin;
+  // Vercel のプレビューデプロイ対応
+  if (origin.endsWith('.vercel.app')) return origin;
+  return ALLOWED_ORIGINS[0];
+}
 
 const getDatabaseUrl = () => process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
 
@@ -159,10 +176,12 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
-  // CORSヘッダー
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // CORSヘッダー（許可されたオリジンのみ）
+  const allowedOrigin = getAllowedOrigin(req);
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Vary', 'Origin');
 
   // CDNキャッシュヘッダー
   res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
@@ -177,6 +196,15 @@ export default async function handler(
     return;
   }
 
+  // レート制限（60秒あたり60リクエスト/IP）
+  const ip = getClientIp(req);
+  const rateCheck = checkRateLimit(ip, 60, 60000);
+  res.setHeader('X-RateLimit-Remaining', String(rateCheck.remaining));
+  if (!rateCheck.allowed) {
+    res.status(429).json({ error: 'Too many requests. Please try again later.' });
+    return;
+  }
+
   const { z, x, y, year, priceClassification } = req.query;
 
   if (!z || !x || !y || !year) {
@@ -188,9 +216,34 @@ export default async function handler(
   const tileX = Number(x);
   const tileY = Number(y);
   const yearNum = Number(year);
+
+  // 入力バリデーション: タイル座標と年の範囲チェック
+  if (!Number.isInteger(tileZ) || tileZ < 1 || tileZ > 20) {
+    res.status(400).json({ error: 'Invalid zoom level (z must be 1-20)' });
+    return;
+  }
+  const maxTile = Math.pow(2, tileZ);
+  if (!Number.isInteger(tileX) || tileX < 0 || tileX >= maxTile) {
+    res.status(400).json({ error: 'Invalid tile x coordinate' });
+    return;
+  }
+  if (!Number.isInteger(tileY) || tileY < 0 || tileY >= maxTile) {
+    res.status(400).json({ error: 'Invalid tile y coordinate' });
+    return;
+  }
+  if (!Number.isInteger(yearNum) || yearNum < 1995 || yearNum > new Date().getFullYear() + 1) {
+    res.status(400).json({ error: 'Invalid year (must be 1995-current)' });
+    return;
+  }
+
   const classification = priceClassification !== undefined && priceClassification !== ''
     ? Number(priceClassification)
     : undefined;
+
+  if (classification !== undefined && (classification !== 0 && classification !== 1)) {
+    res.status(400).json({ error: 'Invalid priceClassification (must be 0 or 1)' });
+    return;
+  }
 
   try {
     // プローブ状態を取得

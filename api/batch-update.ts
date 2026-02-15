@@ -64,9 +64,9 @@ export default async function handler(
   // Cron認証（Vercelが自動的にAuthorization headerを付与）
   const authHeader = req.headers.authorization;
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    // フォールバック: APIキー認証も許可
-    const authKey = req.query.key || req.headers['x-api-key'];
-    if (authKey !== process.env.REINFOLIB_API_KEY) {
+    // フォールバック: 管理者専用シークレットで認証
+    const adminKey = req.headers['x-admin-secret'] || req.query.key;
+    if (!process.env.ADMIN_SECRET || adminKey !== process.env.ADMIN_SECRET) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }

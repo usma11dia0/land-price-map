@@ -6,6 +6,20 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { checkRateLimit, getClientIp } from './_rateLimit.js';
 
+/** 許可するオリジン一覧 */
+const ALLOWED_ORIGINS = [
+  'https://land-price-map.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:8080',
+];
+
+function getAllowedOrigin(req: VercelRequest): string {
+  const origin = req.headers.origin || '';
+  if (ALLOWED_ORIGINS.includes(origin)) return origin;
+  if (origin.endsWith('.vercel.app')) return origin;
+  return ALLOWED_ORIGINS[0];
+}
+
 interface PlacesResponse {
   places?: Array<{
     id: string;
@@ -31,10 +45,12 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
-  // CORSヘッダー
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // CORSヘッダー（許可されたオリジンのみ）
+  const allowedOrigin = getAllowedOrigin(req);
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Vary', 'Origin');
 
   // CDNキャッシュ
   res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400');
