@@ -12,13 +12,18 @@
  *   - usage_limit:   月間上限
  *
  * 月が変わった場合、自動的に monthly_count をリセットする
+ *
+ * 注意: このエンドポイントは DATABASE_URL_SHARED を使用し、
+ *       本番/開発環境で同じDBを共有する（GCP課金は環境共通のため）
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { neon } from '@neondatabase/serverless';
 import { checkRateLimit, getClientIp } from './_rateLimit.js';
 
-const getDatabaseUrl = () => process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
+/** 共有DB接続: 本番・開発共通で同じDBを参照（API使用量は環境横断で共有） */
+const getDatabaseUrl = () =>
+  process.env.DATABASE_URL_SHARED || process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
 
 let _sql: ReturnType<typeof neon> | null = null;
 function getSQL() {
