@@ -15,6 +15,7 @@
     <div id="header">
         <div id="header-left">
             <h1>地図検索システム（実務修習）</h1>
+            <button id="settings-button" title="API使用状況">&#9432;</button>
         </div>
         <div id="search-area">
             <div id="external-links">
@@ -40,59 +41,60 @@
             <div id="search-container">
                 <input type="text" id="search-input" placeholder="住所を入力（例：東京都千代田区丸の内1丁目）">
                 <button id="search-button">検索</button>
-                <button id="settings-button" title="API使用状況">&#9432;</button>
             </div>
         </div>
     </div>
     <div id="search-results"></div>
-    <div id="map"></div>
-    <div id="map-crosshair">
-        <svg viewBox="0 0 40 40" width="40" height="40">
-            <line x1="20" y1="5" x2="20" y2="35" stroke="rgba(0,0,0,0.7)" stroke-width="1.5"/>
-            <line x1="5" y1="20" x2="35" y2="20" stroke="rgba(0,0,0,0.7)" stroke-width="1.5"/>
-        </svg>
-    </div>
-
-    <!-- 地価情報コントロールパネル -->
-    <div id="land-price-control" class="land-price-control">
-        <div class="land-price-control-header">
-            <span>地価情報</span>
-        </div>
-        <div class="land-price-control-body">
-            <label class="land-price-checkbox">
-                <input type="checkbox" id="show-koji" />
-                <span class="checkbox-icon koji-icon"></span>
-                <span>地価公示</span>
-            </label>
-            <label class="land-price-checkbox">
-                <input type="checkbox" id="show-chosa" />
-                <span class="checkbox-icon chosa-icon"></span>
-                <span>都道府県地価調査</span>
-            </label>
-            <button id="land-price-search-btn" class="land-price-search-btn" disabled>
-                この範囲で検索
-            </button>
-            <div id="land-price-loading" class="land-price-loading" style="display: none;">
-                <span class="spinner"></span>
-                <span>読み込み中...</span>
-            </div>
-            <div id="land-price-count" class="land-price-count" style="display: none;">
-                <span id="land-price-count-value">0</span>件表示中
-            </div>
-        </div>
-    </div>
-
-    <!-- 登録地点パネル -->
-    <div id="saved-location-panel" class="saved-location-panel">
-        <div class="saved-location-panel-header">
-            <span>登録地点</span>
-            <svg class="panel-toggle-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+    <div id="map-container">
+        <div id="map"></div>
+        <div id="map-crosshair">
+            <svg viewBox="0 0 40 40" width="40" height="40">
+                <line x1="20" y1="5" x2="20" y2="35" stroke="rgba(0,0,0,0.7)" stroke-width="1.5"/>
+                <line x1="5" y1="20" x2="35" y2="20" stroke="rgba(0,0,0,0.7)" stroke-width="1.5"/>
             </svg>
         </div>
-        <div class="saved-location-panel-body">
-            <div id="saved-location-list" class="saved-location-list">
-                <div class="saved-location-empty">右クリックで地点を登録</div>
+
+        <!-- 地価情報コントロールパネル -->
+        <div id="land-price-control" class="land-price-control">
+            <div class="land-price-control-header">
+                <span>地価情報</span>
+            </div>
+            <div class="land-price-control-body">
+                <label class="land-price-checkbox">
+                    <input type="checkbox" id="show-koji" />
+                    <span class="checkbox-icon koji-icon"></span>
+                    <span>地価公示</span>
+                </label>
+                <label class="land-price-checkbox">
+                    <input type="checkbox" id="show-chosa" />
+                    <span class="checkbox-icon chosa-icon"></span>
+                    <span>都道府県地価調査</span>
+                </label>
+                <button id="land-price-search-btn" class="land-price-search-btn" disabled>
+                    この範囲で検索
+                </button>
+                <div id="land-price-loading" class="land-price-loading" style="display: none;">
+                    <span class="spinner"></span>
+                    <span>読み込み中...</span>
+                </div>
+                <div id="land-price-count" class="land-price-count" style="display: none;">
+                    <span id="land-price-count-value">0</span>件表示中
+                </div>
+            </div>
+        </div>
+
+        <!-- 登録地点パネル -->
+        <div id="saved-location-panel" class="saved-location-panel">
+            <div class="saved-location-panel-header">
+                <span>登録地点</span>
+                <svg class="panel-toggle-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+                </svg>
+            </div>
+            <div class="saved-location-panel-body">
+                <div id="saved-location-list" class="saved-location-list">
+                    <div class="saved-location-empty">右クリックで地点を登録</div>
+                </div>
             </div>
         </div>
     </div>

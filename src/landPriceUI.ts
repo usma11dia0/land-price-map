@@ -151,6 +151,7 @@ function setupGlobalDragEvents(): void {
     newY = Math.max(0, Math.min(newY, maxY));
 
     panel.element.style.right = 'auto';
+    panel.element.style.bottom = 'auto';
     panel.element.style.left = `${newX}px`;
     panel.element.style.top = `${newY}px`;
   });
@@ -184,6 +185,7 @@ function setupGlobalDragEvents(): void {
     newY = Math.max(0, Math.min(newY, maxY));
 
     panel.element.style.right = 'auto';
+    panel.element.style.bottom = 'auto';
     panel.element.style.left = `${newX}px`;
     panel.element.style.top = `${newY}px`;
   }, { passive: true });
@@ -485,13 +487,13 @@ export function openLandPriceModal(point: LandPricePoint): void {
   const panelId = `land-price-panel-${++panelCounter}`;
   const panel = createPanelElement(panelId, point);
   
-  // パネルの位置を設定
-  // 最初のパネルは左上（右側の地価情報・登録地点パネルと被らない位置）
-  // 2つ目以降は左にずらして配置
-  const offset = openPanels.size * 30;
-  panel.style.top = `${80 + offset}px`;
-  panel.style.left = `${20 + offset}px`;
-  panel.style.right = 'auto';
+  // パネルの位置を設定（モバイル時はCSS側でボトムシートにするのでスキップ）
+  if (window.innerWidth > 768) {
+    const offset = openPanels.size * 30;
+    panel.style.top = `${80 + offset}px`;
+    panel.style.left = `${20 + offset}px`;
+    panel.style.right = 'auto';
+  }
 
   // DOMに追加
   document.body.appendChild(panel);

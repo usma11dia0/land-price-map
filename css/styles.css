@@ -9,9 +9,16 @@
   box-sizing: border-box;
 }
 
+html, body {
+  height: 100%;
+}
+
 body {
   font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo,
     sans-serif;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 /* ===== ヘッダー ===== */
@@ -24,6 +31,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-shrink: 0;
 }
 
 #header-left {
@@ -132,7 +140,7 @@ body {
   color: white;
   cursor: pointer;
   padding: 4px 8px;
-  margin-left: 12px;
+  margin-left: auto;
   opacity: 0.9;
   transition: opacity 0.2s;
 }
@@ -141,59 +149,24 @@ body {
   opacity: 1;
 }
 
-/* ===== レスポンシブ対応 ===== */
-@media (max-width: 768px) {
-  #header {
-    flex-direction: column;
-    gap: 10px;
-    padding: 10px;
-  }
-
-  #header-left {
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  #search-area {
-    flex-direction: column;
-    gap: 10px;
-    width: 100%;
-  }
-
-  #search-container {
-    width: 100%;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  #search-input {
-    width: 100%;
-    max-width: 300px;
-  }
-
-  #external-links {
-    padding-right: 0;
-    border-right: none;
-    justify-content: center;
-  }
-
-  .external-link-btn {
-    font-size: 12px;
-    padding: 6px 10px;
-  }
+/* ===== 地図コンテナ ===== */
+#map-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
 }
 
 /* ===== 地図 ===== */
 #map {
-  height: calc(100vh - 56px);
+  height: 100%;
   width: 100%;
   position: relative;
 }
 
 /* ===== 地図中心クロスヘア ===== */
 #map-crosshair {
-  position: fixed;
-  top: calc(56px + (100vh - 56px) / 2);
+  position: absolute;
+  top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 999;
@@ -204,7 +177,7 @@ body {
 /* ===== 検索結果候補一覧 ===== */
 #search-results {
   display: none;
-  position: absolute;
+  position: fixed;
   top: 56px;
   right: 20px;
   background: white;
@@ -449,7 +422,7 @@ body {
 /* ===== 地価情報コントロールパネル ===== */
 .land-price-control {
   position: absolute;
-  top: 70px;
+  top: 10px;
   right: 10px;
   background: white;
   border-radius: 8px;
@@ -841,24 +814,7 @@ body {
   height: 16px;
 }
 
-/* レスポンシブ対応 */
-@media (max-width: 768px) {
-  .land-price-control {
-    top: auto;
-    bottom: 80px;
-    right: 10px;
-    left: 10px;
-    min-width: auto;
-  }
-
-  .modal-land-price {
-    max-height: 90vh;
-  }
-
-  .price-value {
-    font-size: 24px;
-  }
-}
+/* 地価コントロール モバイル対応は統合メディアクエリで定義 */
 
 /* ===== フローティングパネル ===== */
 .floating-panel {
@@ -1019,28 +975,12 @@ body {
   font-size: 24px;
 }
 
-/* モバイル対応 */
-@media (max-width: 768px) {
-  .floating-panel {
-    top: auto;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    width: 100%;
-    max-height: 60vh;
-    border-radius: 16px 16px 0 0;
-    resize: none;
-  }
-
-  .floating-panel.minimized {
-    max-height: none;
-  }
-}
+/* フローティングパネル モバイル対応は統合メディアクエリで定義 */
 
 /* ===== 登録地点パネル ===== */
 .saved-location-panel {
   position: absolute;
-  top: 290px;
+  top: 240px;
   right: 10px;
   background: white;
   border-radius: 8px;
@@ -1454,22 +1394,7 @@ body {
   background: #219a52;
 }
 
-/* モバイル対応 */
-@media (max-width: 768px) {
-  .saved-location-panel {
-    top: auto;
-    bottom: 160px;
-    right: 10px;
-    left: 10px;
-    min-width: auto;
-    max-width: none;
-  }
-
-  .dialog {
-    width: 95%;
-    max-width: none;
-  }
-}
+/* 登録地点パネル モバイル対応は統合メディアクエリで定義 */
 
 /* ===== トースト通知 ===== */
 .toast-notification {
@@ -1492,4 +1417,216 @@ body {
 .toast-notification.show {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+/* ============================================================
+   モバイルレスポンシブ対応（統合メディアクエリ）
+   ============================================================ */
+@media (max-width: 768px) {
+  /* --- ヘッダー --- */
+  #header {
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+
+  #header-left {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+
+  #header h1 {
+    font-size: 15px;
+  }
+
+  #settings-button {
+    margin-left: auto;
+    font-size: 24px;
+    padding: 4px 8px;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* --- 検索エリア --- */
+  #search-area {
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+
+  #external-links {
+    padding-right: 0;
+    border-right: none;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .external-link-btn {
+    font-size: 11px;
+    padding: 6px 8px;
+    min-height: 36px;
+    gap: 4px;
+  }
+
+  .external-link-btn .btn-icon-svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  #search-container {
+    width: 100%;
+    gap: 6px;
+  }
+
+  #search-input {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+    font-size: 16px; /* iOS ズーム防止 */
+  }
+
+  #search-button {
+    min-width: 56px;
+    min-height: 44px;
+  }
+
+  /* --- 検索結果ドロップダウン --- */
+  #search-results {
+    top: auto;
+    right: 8px;
+    left: 8px;
+    min-width: auto;
+    max-width: none;
+    max-height: 50vh;
+  }
+
+  /* --- 地価情報コントロールパネル --- */
+  .land-price-control {
+    top: 10px;
+    right: 10px;
+    left: auto;
+    bottom: auto;
+    min-width: auto;
+    max-width: 200px;
+  }
+
+  .land-price-control-header {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .land-price-control-body {
+    padding: 8px 12px;
+  }
+
+  .land-price-checkbox {
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+
+  .land-price-search-btn {
+    padding: 8px;
+    font-size: 12px;
+  }
+
+  /* --- 登録地点パネル --- */
+  .saved-location-panel {
+    top: auto;
+    bottom: 40px;
+    right: 10px;
+    left: auto;
+    min-width: auto;
+    max-width: 200px;
+  }
+
+  .saved-location-panel-header {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .saved-location-panel-body {
+    max-height: 200px;
+  }
+
+  .saved-location-item {
+    padding: 8px 10px;
+  }
+
+  .saved-location-name {
+    font-size: 12px;
+  }
+
+  .saved-location-detail {
+    font-size: 10px;
+  }
+
+  /* --- フローティングパネル（地価詳細） --- */
+  .floating-panel {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-height: 60vh;
+    border-radius: 16px 16px 0 0;
+    resize: none;
+    min-width: auto;
+  }
+
+  .floating-panel.minimized {
+    max-height: none;
+  }
+
+  .floating-panel.minimized .floating-panel-body {
+    display: none;
+  }
+
+  .floating-panel-header {
+    padding: 10px 14px;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .floating-panel-header h2 {
+    font-size: 13px;
+  }
+
+  /* --- 地価モーダル --- */
+  .modal-land-price {
+    max-height: 90vh;
+  }
+
+  .price-value {
+    font-size: 24px;
+  }
+
+  /* --- ダイアログ --- */
+  .dialog {
+    width: 95%;
+    max-width: none;
+  }
+
+  /* --- 地価警告トースト --- */
+  .land-price-warning {
+    left: 8px;
+    right: 8px;
+    transform: none;
+    max-width: none;
+  }
+
+  /* --- トースト通知 --- */
+  .toast-notification {
+    left: 16px;
+    right: 16px;
+    transform: translateY(20px);
+    text-align: center;
+  }
+
+  .toast-notification.show {
+    transform: translateY(0);
+  }
 }

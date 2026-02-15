@@ -169,6 +169,16 @@ export function showSearchResults(
   searchResultsEl.innerHTML = html;
   searchResultsEl.classList.add('show');
 
+  // モバイル時はヘッダー下端に合わせて表示位置を調整
+  if (window.innerWidth <= 768) {
+    const header = document.getElementById('header');
+    if (header) {
+      searchResultsEl.style.top = header.offsetHeight + 'px';
+    }
+  } else {
+    searchResultsEl.style.top = '';
+  }
+
   // 結果をグローバルに保存
   window.currentResults = results;
 }
