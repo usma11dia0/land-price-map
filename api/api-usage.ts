@@ -2,16 +2,20 @@
  * Vercel Serverless Function - Google API使用量管理
  *
  * エンドポイント:
- *   GET  /api/api-usage          - 現在の使用量を取得
- *   POST /api/api-usage          - 使用量をインクリメント（+1）
+ *   GET  /api/api-usage              - 現在の使用量を取得（Geocoding + Places）
+ *   POST /api/api-usage              - Geocoding使用量をインクリメント（+1）
+ *   POST /api/api-usage?type=places  - Places使用量をインクリメント（+1）
  *
  * テーブル: api_usage（シングルトン、id=1 固定）
- *   - monthly_count: 今月の使用回数
- *   - total_count:   累計使用回数
- *   - current_month: 記録月（"YYYY-MM"形式）
- *   - usage_limit:   月間上限
+ *   - monthly_count:        Geocoding 今月の使用回数
+ *   - total_count:          Geocoding 累計使用回数
+ *   - current_month:        記録月（"YYYY-MM"形式）
+ *   - usage_limit:          Geocoding 月間上限
+ *   - places_monthly_count: Places 今月の使用回数
+ *   - places_total_count:   Places 累計使用回数
+ *   - places_usage_limit:   Places 月間上限
  *
- * 月が変わった場合、自動的に monthly_count をリセットする
+ * 月が変わった場合、自動的に monthly_count / places_monthly_count をリセットする
  *
  * 注意: このエンドポイントは DATABASE_URL_SHARED を使用し、
  *       本番/開発環境で同じDBを共有する（GCP課金は環境共通のため）
@@ -86,7 +90,7 @@ export default async function handler(
     const currentMonth = getCurrentMonth();
 
     if (req.method === 'GET') {
-      // ── 使用量を取得 ──
+      // ── 使用量を取得（Geocoding + Places） ──
       const rows = await sql`SELECT * FROM api_usage WHERE id = 1` as Record<string, any>[];
 
       if (rows.length === 0) {
@@ -96,17 +100,23 @@ export default async function handler(
           totalCount: 0,
           currentMonth,
           usageLimit: 9000,
+          placesMonthlyCount: 0,
+          placesTotalCount: 0,
+          placesUsageLimit: 5000,
         });
         return;
       }
 
       const row = rows[0];
 
-      // 月が変わっていたらリセット
+      // 月が変わっていたら両カウンターをリセット
       if (row.current_month !== currentMonth) {
         await sql`
           UPDATE api_usage
-          SET monthly_count = 0, current_month = ${currentMonth}, updated_at = NOW()
+          SET monthly_count = 0,
+              places_monthly_count = 0,
+              current_month = ${currentMonth},
+              updated_at = NOW()
           WHERE id = 1
         `;
         res.status(200).json({
@@ -114,6 +124,9 @@ export default async function handler(
           totalCount: Number(row.total_count),
           currentMonth,
           usageLimit: Number(row.usage_limit),
+          placesMonthlyCount: 0,
+          placesTotalCount: Number(row.places_total_count || 0),
+          placesUsageLimit: Number(row.places_usage_limit || 5000),
         });
         return;
       }
@@ -123,29 +136,49 @@ export default async function handler(
         totalCount: Number(row.total_count),
         currentMonth: row.current_month,
         usageLimit: Number(row.usage_limit),
+        placesMonthlyCount: Number(row.places_monthly_count || 0),
+        placesTotalCount: Number(row.places_total_count || 0),
+        placesUsageLimit: Number(row.places_usage_limit || 5000),
       });
       return;
     }
 
     if (req.method === 'POST') {
       // ── 使用量をインクリメント ──
-      // まず月チェック＆リセット後にインクリメント
+      // type パラメータで対象カウンターを切り替え（デフォルト: geocoding）
+      const apiType = req.query.type === 'places' ? 'places' : 'geocoding';
+
       const rows = await sql`SELECT * FROM api_usage WHERE id = 1` as Record<string, any>[];
 
       if (rows.length === 0) {
-        // テーブルが空なら初期行を挿入してカウント1に
-        await sql`
-          INSERT INTO api_usage (id, monthly_count, total_count, current_month, usage_limit)
-          VALUES (1, 1, 1, ${currentMonth}, 9000)
-          ON CONFLICT (id) DO UPDATE SET
-            monthly_count = 1, total_count = api_usage.total_count + 1,
-            current_month = ${currentMonth}, updated_at = NOW()
-        `;
+        // テーブルが空なら初期行を挿入
+        if (apiType === 'places') {
+          await sql`
+            INSERT INTO api_usage (id, monthly_count, total_count, current_month, usage_limit,
+                                   places_monthly_count, places_total_count, places_usage_limit)
+            VALUES (1, 0, 0, ${currentMonth}, 9000, 1, 1, 5000)
+            ON CONFLICT (id) DO UPDATE SET
+              places_monthly_count = 1, places_total_count = api_usage.places_total_count + 1,
+              current_month = ${currentMonth}, updated_at = NOW()
+          `;
+        } else {
+          await sql`
+            INSERT INTO api_usage (id, monthly_count, total_count, current_month, usage_limit,
+                                   places_monthly_count, places_total_count, places_usage_limit)
+            VALUES (1, 1, 1, ${currentMonth}, 9000, 0, 0, 5000)
+            ON CONFLICT (id) DO UPDATE SET
+              monthly_count = 1, total_count = api_usage.total_count + 1,
+              current_month = ${currentMonth}, updated_at = NOW()
+          `;
+        }
         res.status(200).json({
-          monthlyCount: 1,
-          totalCount: 1,
+          monthlyCount: apiType === 'geocoding' ? 1 : 0,
+          totalCount: apiType === 'geocoding' ? 1 : 0,
           currentMonth,
           usageLimit: 9000,
+          placesMonthlyCount: apiType === 'places' ? 1 : 0,
+          placesTotalCount: apiType === 'places' ? 1 : 0,
+          placesUsageLimit: 5000,
           canUse: true,
         });
         return;
@@ -153,6 +186,62 @@ export default async function handler(
 
       const row = rows[0];
       const isNewMonth = row.current_month !== currentMonth;
+
+      if (apiType === 'places') {
+        // ── Places カウンターをインクリメント ──
+        const currentPlacesCount = isNewMonth ? 0 : Number(row.places_monthly_count || 0);
+        const placesLimit = Number(row.places_usage_limit || 5000);
+
+        // 上限チェック
+        if (currentPlacesCount >= placesLimit) {
+          res.status(200).json({
+            monthlyCount: isNewMonth ? 0 : Number(row.monthly_count),
+            totalCount: Number(row.total_count),
+            currentMonth,
+            usageLimit: Number(row.usage_limit),
+            placesMonthlyCount: currentPlacesCount,
+            placesTotalCount: Number(row.places_total_count || 0),
+            placesUsageLimit: placesLimit,
+            canUse: false,
+          });
+          return;
+        }
+
+        if (isNewMonth) {
+          await sql`
+            UPDATE api_usage
+            SET monthly_count = 0,
+                places_monthly_count = 1,
+                places_total_count = places_total_count + 1,
+                current_month = ${currentMonth},
+                updated_at = NOW()
+            WHERE id = 1
+          `;
+        } else {
+          await sql`
+            UPDATE api_usage
+            SET places_monthly_count = places_monthly_count + 1,
+                places_total_count = places_total_count + 1,
+                updated_at = NOW()
+            WHERE id = 1
+          `;
+        }
+
+        const newPlacesCount = isNewMonth ? 1 : currentPlacesCount + 1;
+        res.status(200).json({
+          monthlyCount: isNewMonth ? 0 : Number(row.monthly_count),
+          totalCount: Number(row.total_count),
+          currentMonth,
+          usageLimit: Number(row.usage_limit),
+          placesMonthlyCount: newPlacesCount,
+          placesTotalCount: Number(row.places_total_count || 0) + 1,
+          placesUsageLimit: placesLimit,
+          canUse: newPlacesCount < placesLimit,
+        });
+        return;
+      }
+
+      // ── Geocoding カウンターをインクリメント（従来動作） ──
       const currentMonthlyCount = isNewMonth ? 0 : Number(row.monthly_count);
       const usageLimit = Number(row.usage_limit);
 
@@ -163,17 +252,20 @@ export default async function handler(
           totalCount: Number(row.total_count),
           currentMonth,
           usageLimit,
+          placesMonthlyCount: isNewMonth ? 0 : Number(row.places_monthly_count || 0),
+          placesTotalCount: Number(row.places_total_count || 0),
+          placesUsageLimit: Number(row.places_usage_limit || 5000),
           canUse: false,
         });
         return;
       }
 
-      // インクリメント（月が変わっていたらリセット込み）
       if (isNewMonth) {
         await sql`
           UPDATE api_usage
           SET monthly_count = 1,
               total_count = total_count + 1,
+              places_monthly_count = 0,
               current_month = ${currentMonth},
               updated_at = NOW()
           WHERE id = 1
@@ -194,6 +286,9 @@ export default async function handler(
         totalCount: Number(row.total_count) + 1,
         currentMonth,
         usageLimit,
+        placesMonthlyCount: isNewMonth ? 0 : Number(row.places_monthly_count || 0),
+        placesTotalCount: Number(row.places_total_count || 0),
+        placesUsageLimit: Number(row.places_usage_limit || 5000),
         canUse: newMonthlyCount < usageLimit,
       });
       return;
@@ -208,6 +303,9 @@ export default async function handler(
       totalCount: 0,
       currentMonth: getCurrentMonth(),
       usageLimit: 9000,
+      placesMonthlyCount: 0,
+      placesTotalCount: 0,
+      placesUsageLimit: 5000,
       canUse: true,
       error: 'DB unavailable, using fallback',
     });

@@ -4,7 +4,7 @@
  */
 
 import type { SearchResult } from './types.js';
-import { getUsageData, getUsageLimit } from './storage.js';
+import { getUsageData, getUsageLimit, getPlacesUsageLimit } from './storage.js';
 
 
 /** DOM要素 */
@@ -14,6 +14,11 @@ let usageLimitEl: HTMLElement;
 let usageRemainingEl: HTMLElement;
 let usageTotalEl: HTMLElement;
 let usageBarFill: HTMLElement;
+let placesUsageCurrentEl: HTMLElement;
+let placesUsageLimitEl: HTMLElement;
+let placesUsageRemainingEl: HTMLElement;
+let placesUsageTotalEl: HTMLElement;
+let placesUsageBarFill: HTMLElement;
 let searchResultsEl: HTMLElement;
 
 /** 結果選択時のコールバック */
@@ -29,6 +34,11 @@ export function initUI(): void {
   usageRemainingEl = document.getElementById('usage-remaining')!;
   usageTotalEl = document.getElementById('usage-total')!;
   usageBarFill = document.getElementById('usage-bar-fill')!;
+  placesUsageCurrentEl = document.getElementById('places-usage-current')!;
+  placesUsageLimitEl = document.getElementById('places-usage-limit')!;
+  placesUsageRemainingEl = document.getElementById('places-usage-remaining')!;
+  placesUsageTotalEl = document.getElementById('places-usage-total')!;
+  placesUsageBarFill = document.getElementById('places-usage-bar-fill')!;
   searchResultsEl = document.getElementById('search-results')!;
 
   // グローバル関数を設定（HTMLからのonclick用）
@@ -67,27 +77,48 @@ export function closeSettingsModal(): void {
  */
 export function updateUsageDisplay(): void {
   const data = getUsageData();
-  const limit = getUsageLimit();
-  const remaining = Math.max(0, limit - data.count);
-  const percentage = (data.count / limit) * 100;
+
+  // ── Geocoding API ──
+  const geoLimit = getUsageLimit();
+  const geoRemaining = Math.max(0, geoLimit - data.count);
+  const geoPercentage = (data.count / geoLimit) * 100;
 
   usageCurrentEl.textContent = String(data.count);
-  usageLimitEl.textContent = String(limit);
-  usageRemainingEl.textContent = String(remaining);
+  usageLimitEl.textContent = String(geoLimit);
+  usageRemainingEl.textContent = String(geoRemaining);
   usageTotalEl.textContent = String(data.totalCount || 0);
+  usageBarFill.style.width = Math.min(geoPercentage, 100) + '%';
 
-  usageBarFill.style.width = Math.min(percentage, 100) + '%';
-
-  // 警告レベルの設定
   usageRemainingEl.classList.remove('warning', 'danger');
   usageBarFill.classList.remove('warning', 'danger');
-
-  if (percentage >= 90) {
+  if (geoPercentage >= 90) {
     usageRemainingEl.classList.add('danger');
     usageBarFill.classList.add('danger');
-  } else if (percentage >= 70) {
+  } else if (geoPercentage >= 70) {
     usageRemainingEl.classList.add('warning');
     usageBarFill.classList.add('warning');
+  }
+
+  // ── Places API ──
+  const placesLimit = getPlacesUsageLimit();
+  const placesCount = data.placesCount ?? 0;
+  const placesRemaining = Math.max(0, placesLimit - placesCount);
+  const placesPercentage = (placesCount / placesLimit) * 100;
+
+  placesUsageCurrentEl.textContent = String(placesCount);
+  placesUsageLimitEl.textContent = String(placesLimit);
+  placesUsageRemainingEl.textContent = String(placesRemaining);
+  placesUsageTotalEl.textContent = String(data.placesTotalCount || 0);
+  placesUsageBarFill.style.width = Math.min(placesPercentage, 100) + '%';
+
+  placesUsageRemainingEl.classList.remove('warning', 'danger');
+  placesUsageBarFill.classList.remove('warning', 'danger');
+  if (placesPercentage >= 90) {
+    placesUsageRemainingEl.classList.add('danger');
+    placesUsageBarFill.classList.add('danger');
+  } else if (placesPercentage >= 70) {
+    placesUsageRemainingEl.classList.add('warning');
+    placesUsageBarFill.classList.add('warning');
   }
 }
 

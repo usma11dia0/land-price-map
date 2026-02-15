@@ -21,14 +21,20 @@ export interface SearchResult {
  * API使用量データ
  */
 export interface UsageData {
-  /** 今月の使用回数 */
+  /** Geocoding 今月の使用回数 */
   count: number;
   /** 記録月（年月文字列 例: "2025-01"） */
   date: string;
-  /** 累計使用回数（全期間） */
+  /** Geocoding 累計使用回数（全期間） */
   totalCount?: number;
-  /** 月間使用量上限 */
+  /** Geocoding 月間使用量上限 */
   usageLimit?: number;
+  /** Places 今月の使用回数 */
+  placesCount?: number;
+  /** Places 累計使用回数（全期間） */
+  placesTotalCount?: number;
+  /** Places 月間使用量上限 */
+  placesUsageLimit?: number;
 }
 
 /**

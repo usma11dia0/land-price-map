@@ -12,7 +12,7 @@ import type {
 } from './types.js';
 import type { LandPriceSearchResponse } from './landPriceTypes.js';
 import { CONFIG } from './config.js';
-import { canUseApi, incrementUsage } from './storage.js';
+import { canUseApi, incrementUsage, canUsePlacesApi, incrementPlacesUsage } from './storage.js';
 
 /**
  * fetchをリトライ付きで実行（エクスポネンシャルバックオフ）
@@ -155,10 +155,10 @@ export async function searchWithGoogle(address: string): Promise<SearchResult[]>
  * @returns 検索結果の配列
  */
 export async function searchWithPlaces(query: string): Promise<SearchResult[]> {
-  // API使用量をチェック（Geocodingと共有）
-  if (!canUseApi()) {
-    console.warn('API使用量が上限に達しています。国土地理院APIにフォールバックします。');
-    throw new Error('API_USAGE_LIMIT_EXCEEDED');
+  // Places API使用量をチェック
+  if (!canUsePlacesApi()) {
+    console.warn('Places API使用量が上限に達しています。Nominatimにフォールバックします。');
+    throw new Error('PLACES_API_USAGE_LIMIT_EXCEEDED');
   }
 
   let data: GooglePlacesResponse;
@@ -204,8 +204,8 @@ export async function searchWithPlaces(query: string): Promise<SearchResult[]> {
     return [];
   }
 
-  // 成功時のみ使用量をインクリメント
-  incrementUsage();
+  // 成功時のみPlaces使用量をインクリメント
+  incrementPlacesUsage();
 
   return data.places.map((place) => ({
     name: `${place.displayName.text} (${place.formattedAddress})`,

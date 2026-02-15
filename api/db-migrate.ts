@@ -144,6 +144,20 @@ export default async function handler(
       ON CONFLICT (id) DO NOTHING;
     `;
 
+    // Places API用カラムを追加（既存テーブルへのマイグレーション）
+    await sql`
+      ALTER TABLE api_usage
+        ADD COLUMN IF NOT EXISTS places_monthly_count INTEGER NOT NULL DEFAULT 0;
+    `;
+    await sql`
+      ALTER TABLE api_usage
+        ADD COLUMN IF NOT EXISTS places_total_count INTEGER NOT NULL DEFAULT 0;
+    `;
+    await sql`
+      ALTER TABLE api_usage
+        ADD COLUMN IF NOT EXISTS places_usage_limit INTEGER NOT NULL DEFAULT 5000;
+    `;
+
     // ──────────────────────────────────────────────
     // インデックス
     // ──────────────────────────────────────────────

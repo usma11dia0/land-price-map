@@ -143,7 +143,7 @@
             </div>
             <div class="modal-body">
                 <div class="usage-section">
-                    <h3>API使用状況（Google Geocoding API）</h3>
+                    <h3>Geocoding API（住所検索）</h3>
                     <div class="usage-stats">
                         <div class="usage-row">
                             <span class="usage-label">今月の使用回数</span>
@@ -151,11 +151,11 @@
                         </div>
                         <div class="usage-row">
                             <span class="usage-label">月間上限</span>
-                            <span id="usage-limit" class="usage-value">100</span>
+                            <span id="usage-limit" class="usage-value">9000</span>
                         </div>
                         <div class="usage-row">
                             <span class="usage-label">残り回数</span>
-                            <span id="usage-remaining" class="usage-value">100</span>
+                            <span id="usage-remaining" class="usage-value">9000</span>
                         </div>
                         <div class="usage-bar">
                             <div id="usage-bar-fill" class="usage-bar-fill" style="width: 0%"></div>
@@ -165,11 +165,38 @@
                             <span id="usage-total" class="usage-value">0</span>
                         </div>
                     </div>
-                    <p class="usage-note">※ 使用回数は毎月1日に自動リセットされます</p>
-                    <div class="usage-limit-info">
-                        <p><strong>上限到達時の動作：</strong></p>
-                        <p>番地レベルの精度（Google Geocoding API）での検索ができなくなります。国土地理院の住所検索（町丁目レベル）は引き続き利用可能です。</p>
+                </div>
+                <div class="usage-section">
+                    <h3>Places API（施設名検索）</h3>
+                    <div class="usage-stats">
+                        <div class="usage-row">
+                            <span class="usage-label">今月の使用回数</span>
+                            <span id="places-usage-current" class="usage-value">0</span>
+                        </div>
+                        <div class="usage-row">
+                            <span class="usage-label">月間上限</span>
+                            <span id="places-usage-limit" class="usage-value">5000</span>
+                        </div>
+                        <div class="usage-row">
+                            <span class="usage-label">残り回数</span>
+                            <span id="places-usage-remaining" class="usage-value">5000</span>
+                        </div>
+                        <div class="usage-bar">
+                            <div id="places-usage-bar-fill" class="usage-bar-fill" style="width: 0%"></div>
+                        </div>
+                        <div class="usage-row usage-total">
+                            <span class="usage-label">累計使用回数</span>
+                            <span id="places-usage-total" class="usage-value">0</span>
+                        </div>
                     </div>
+                </div>
+                <p class="usage-note">※ 使用回数は毎月1日に自動リセットされます</p>
+                <div class="usage-limit-info">
+                    <p><strong>上限到達時の動作：</strong></p>
+                    <ul style="margin: 4px 0 0 16px; font-size: 12px; line-height: 1.6;">
+                        <li><strong>Geocoding上限時：</strong>番地レベルの精度での検索不可。国土地理院の住所検索（町丁目レベル）は利用可能。</li>
+                        <li><strong>Places上限時：</strong>施設名の検索精度が低下。Nominatim（OpenStreetMap）での検索は利用可能。</li>
+                    </ul>
                 </div>
             </div>
         </div>

@@ -12,6 +12,9 @@ let cachedUsageData: UsageData = {
   date: getCurrentMonth(),
   totalCount: 0,
   usageLimit: 9000,
+  placesCount: 0,
+  placesTotalCount: 0,
+  placesUsageLimit: 5000,
 };
 
 /** DBからの初回読み込みが完了したか */
@@ -42,6 +45,9 @@ async function fetchUsageFromDB(): Promise<UsageData> {
       date: data.currentMonth ?? getCurrentMonth(),
       totalCount: data.totalCount ?? 0,
       usageLimit: data.usageLimit ?? 9000,
+      placesCount: data.placesMonthlyCount ?? 0,
+      placesTotalCount: data.placesTotalCount ?? 0,
+      placesUsageLimit: data.placesUsageLimit ?? 5000,
     };
     isInitialized = true;
     return cachedUsageData;
@@ -97,6 +103,9 @@ export async function incrementUsageAsync(): Promise<number> {
       date: data.currentMonth ?? getCurrentMonth(),
       totalCount: data.totalCount ?? (cachedUsageData.totalCount ?? 0) + 1,
       usageLimit: data.usageLimit ?? cachedUsageData.usageLimit ?? 9000,
+      placesCount: data.placesMonthlyCount ?? cachedUsageData.placesCount ?? 0,
+      placesTotalCount: data.placesTotalCount ?? cachedUsageData.placesTotalCount ?? 0,
+      placesUsageLimit: data.placesUsageLimit ?? cachedUsageData.placesUsageLimit ?? 5000,
     };
 
     return cachedUsageData.count;
@@ -126,7 +135,7 @@ export function incrementUsage(): number {
 }
 
 /**
- * API使用量の上限を取得
+ * Geocoding API使用量の上限を取得
  * @returns 使用量上限
  */
 export function getUsageLimit(): number {
@@ -134,11 +143,72 @@ export function getUsageLimit(): number {
 }
 
 /**
- * APIを使用可能かどうかをチェック
+ * Places API使用量の上限を取得
+ * @returns 使用量上限
+ */
+export function getPlacesUsageLimit(): number {
+  return cachedUsageData.placesUsageLimit ?? 5000;
+}
+
+/**
+ * Geocoding APIを使用可能かどうかをチェック
  * @returns 使用可能な場合はtrue
  */
 export function canUseApi(): boolean {
   return cachedUsageData.count < getUsageLimit();
+}
+
+/**
+ * Places APIを使用可能かどうかをチェック
+ * @returns 使用可能な場合はtrue
+ */
+export function canUsePlacesApi(): boolean {
+  return (cachedUsageData.placesCount ?? 0) < getPlacesUsageLimit();
+}
+
+/**
+ * Places API使用量をインクリメント（非同期版 - DB経由）
+ * @returns 更新後の今月の使用回数
+ */
+export async function incrementPlacesUsageAsync(): Promise<number> {
+  try {
+    const response = await fetch('/api/api-usage?type=places', { method: 'POST' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+
+    cachedUsageData = {
+      count: data.monthlyCount ?? cachedUsageData.count,
+      date: data.currentMonth ?? getCurrentMonth(),
+      totalCount: data.totalCount ?? cachedUsageData.totalCount ?? 0,
+      usageLimit: data.usageLimit ?? cachedUsageData.usageLimit ?? 9000,
+      placesCount: data.placesMonthlyCount ?? (cachedUsageData.placesCount ?? 0) + 1,
+      placesTotalCount: data.placesTotalCount ?? (cachedUsageData.placesTotalCount ?? 0) + 1,
+      placesUsageLimit: data.placesUsageLimit ?? cachedUsageData.placesUsageLimit ?? 5000,
+    };
+
+    return cachedUsageData.placesCount ?? 0;
+  } catch (error) {
+    console.warn('DB Places使用量更新エラー - ローカルカウントを更新:', error);
+    cachedUsageData.placesCount = (cachedUsageData.placesCount ?? 0) + 1;
+    cachedUsageData.placesTotalCount = (cachedUsageData.placesTotalCount ?? 0) + 1;
+    return cachedUsageData.placesCount;
+  }
+}
+
+/**
+ * Places API使用量をインクリメント（同期互換 - 内部で非同期実行）
+ * @returns キャッシュ上の使用回数（DB反映は非同期）
+ */
+export function incrementPlacesUsage(): number {
+  cachedUsageData.placesCount = (cachedUsageData.placesCount ?? 0) + 1;
+  cachedUsageData.placesTotalCount = (cachedUsageData.placesTotalCount ?? 0) + 1;
+
+  // バックグラウンドでDB更新
+  fetch('/api/api-usage?type=places', { method: 'POST' }).catch((err) => {
+    console.warn('DB Places使用量バックグラウンド更新エラー:', err);
+  });
+
+  return cachedUsageData.placesCount;
 }
 
 /**
@@ -150,5 +220,8 @@ export function resetUsageData(): void {
     date: getCurrentMonth(),
     totalCount: cachedUsageData.totalCount,
     usageLimit: cachedUsageData.usageLimit ?? 9000,
+    placesCount: 0,
+    placesTotalCount: cachedUsageData.placesTotalCount,
+    placesUsageLimit: cachedUsageData.placesUsageLimit ?? 5000,
   };
 }
