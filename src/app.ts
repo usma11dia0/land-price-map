@@ -9,6 +9,7 @@ import { initUI, setupModalEventListeners, hideSearchResults } from './ui.js';
 import { initLandPriceUI } from './landPriceUI.js';
 import { initSavedLocationUI } from './savedLocationUI.js';
 import { getUrlState } from './urlState.js';
+import { initUsageData } from './storage.js';
 
 /** Leaflet型の簡易定義 */
 declare const L: typeof import('leaflet');
@@ -40,6 +41,11 @@ function initApp(): void {
 
   // 登録地点UIを初期化
   initSavedLocationUI();
+
+  // API使用量をDBから初期化（バックグラウンド）
+  initUsageData().catch((err) => {
+    console.warn('API使用量の初期化に失敗:', err);
+  });
 
   // 地図クリックでピンを移動
   map.on('click', (e: L.LeafletMouseEvent) => {

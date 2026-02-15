@@ -38,11 +38,21 @@ export function initUI(): void {
 }
 
 /**
- * 設定モーダルを開く
+ * 設定モーダルを開く（DBから最新データを取得して表示）
  */
-export function openSettingsModal(): void {
+export async function openSettingsModal(): Promise<void> {
+  // まず即座にキャッシュで表示
   updateUsageDisplay();
   settingsModal.classList.add('show');
+
+  // その後DBから最新を取得して更新
+  try {
+    const { getUsageDataAsync } = await import('./storage.js');
+    await getUsageDataAsync();
+    updateUsageDisplay();
+  } catch {
+    // キャッシュ表示のままで問題なし
+  }
 }
 
 /**

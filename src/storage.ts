@@ -1,13 +1,21 @@
 /**
- * ローカルストレージ管理モジュール
- * API使用量の追跡と永続化を担当（月間管理）
+ * API使用量管理モジュール
+ * Neon DB 経由で使用量を管理（サーバーサイドで月次リセット）
+ * DB接続不可時はフォールバックとしてローカルのメモリ内データを使用
  */
 
 import type { UsageData } from './types.js';
-import { CONFIG } from './config.js';
 
-/** ストレージキー */
-const STORAGE_KEY = 'landPriceMap_apiUsage';
+/** メモリ内キャッシュ（DBから取得した最新値を保持） */
+let cachedUsageData: UsageData = {
+  count: 0,
+  date: getCurrentMonth(),
+  totalCount: 0,
+  usageLimit: 9000,
+};
+
+/** DBからの初回読み込みが完了したか */
+let isInitialized = false;
 
 /**
  * 現在の年月文字列を取得
@@ -21,57 +29,100 @@ function getCurrentMonth(): string {
 }
 
 /**
- * API使用量データを取得
- * 月が変わっていた場合は今月の使用回数を自動的にリセット（累計は保持）
+ * DBから使用量データを取得してキャッシュを更新
+ */
+async function fetchUsageFromDB(): Promise<UsageData> {
+  try {
+    const response = await fetch('/api/api-usage');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+
+    cachedUsageData = {
+      count: data.monthlyCount ?? 0,
+      date: data.currentMonth ?? getCurrentMonth(),
+      totalCount: data.totalCount ?? 0,
+      usageLimit: data.usageLimit ?? 9000,
+    };
+    isInitialized = true;
+    return cachedUsageData;
+  } catch (error) {
+    console.warn('DB使用量取得エラー - キャッシュを使用:', error);
+    return cachedUsageData;
+  }
+}
+
+/**
+ * 使用量データを初期化（アプリ起動時に1回呼び出す）
+ */
+export async function initUsageData(): Promise<UsageData> {
+  return fetchUsageFromDB();
+}
+
+/**
+ * API使用量データを取得（同期版 - キャッシュを返す）
  * @returns 使用量データ
  */
 export function getUsageData(): UsageData {
-  const data = localStorage.getItem(STORAGE_KEY);
-
-  if (!data) {
-    return { count: 0, date: getCurrentMonth(), totalCount: 0 };
-  }
-
-  const parsed: UsageData = JSON.parse(data);
-
-  // 月が変わっていたら今月分をリセット（累計は保持）
-  if (parsed.date !== getCurrentMonth()) {
-    const newData: UsageData = {
-      count: 0,
-      date: getCurrentMonth(),
-      totalCount: parsed.totalCount || 0,
-    };
-    saveUsageData(newData);
-    return newData;
-  }
-
-  // 累計がない古いデータの場合は初期化
-  if (parsed.totalCount === undefined) {
-    parsed.totalCount = parsed.count;
-  }
-
-  return parsed;
+  return cachedUsageData;
 }
 
 /**
- * API使用量データを保存
+ * API使用量データを取得（非同期版 - DBから最新を取得）
+ * @returns 使用量データ
+ */
+export async function getUsageDataAsync(): Promise<UsageData> {
+  return fetchUsageFromDB();
+}
+
+/**
+ * API使用量データを保存（互換性のため残すが、DB側で管理）
  * @param data 保存する使用量データ
  */
 export function saveUsageData(data: UsageData): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  cachedUsageData = data;
 }
 
 /**
- * API使用量をインクリメント
- * @returns 更新後の使用回数
+ * API使用量をインクリメント（DB経由）
+ * @returns 更新後の今月の使用回数
+ */
+export async function incrementUsageAsync(): Promise<number> {
+  try {
+    const response = await fetch('/api/api-usage', { method: 'POST' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+
+    cachedUsageData = {
+      count: data.monthlyCount ?? cachedUsageData.count + 1,
+      date: data.currentMonth ?? getCurrentMonth(),
+      totalCount: data.totalCount ?? (cachedUsageData.totalCount ?? 0) + 1,
+      usageLimit: data.usageLimit ?? cachedUsageData.usageLimit ?? 9000,
+    };
+
+    return cachedUsageData.count;
+  } catch (error) {
+    console.warn('DB使用量更新エラー - ローカルカウントを更新:', error);
+    cachedUsageData.count++;
+    cachedUsageData.totalCount = (cachedUsageData.totalCount ?? 0) + 1;
+    return cachedUsageData.count;
+  }
+}
+
+/**
+ * API使用量をインクリメント（同期互換 - 内部で非同期実行）
+ * @returns キャッシュ上の使用回数（DB反映は非同期）
  */
 export function incrementUsage(): number {
-  const data = getUsageData();
-  data.count++;
-  data.totalCount = (data.totalCount || 0) + 1;
-  data.date = getCurrentMonth();
-  saveUsageData(data);
-  return data.count;
+  // 非同期でDBに反映、即座にキャッシュを更新して返す
+  cachedUsageData.count++;
+  cachedUsageData.totalCount = (cachedUsageData.totalCount ?? 0) + 1;
+
+  // バックグラウンドでDB更新
+  fetch('/api/api-usage', { method: 'POST' }).catch((err) => {
+    console.warn('DB使用量バックグラウンド更新エラー:', err);
+  });
+
+  return cachedUsageData.count;
 }
 
 /**
@@ -79,7 +130,7 @@ export function incrementUsage(): number {
  * @returns 使用量上限
  */
 export function getUsageLimit(): number {
-  return CONFIG.API_USAGE_LIMIT || 9000;
+  return cachedUsageData.usageLimit ?? 9000;
 }
 
 /**
@@ -87,13 +138,17 @@ export function getUsageLimit(): number {
  * @returns 使用可能な場合はtrue
  */
 export function canUseApi(): boolean {
-  const data = getUsageData();
-  return data.count < getUsageLimit();
+  return cachedUsageData.count < getUsageLimit();
 }
 
 /**
- * API使用量をリセット
+ * API使用量をリセット（キャッシュのみ。DBリセットは月次自動）
  */
 export function resetUsageData(): void {
-  saveUsageData({ count: 0, date: getCurrentMonth() });
+  cachedUsageData = {
+    count: 0,
+    date: getCurrentMonth(),
+    totalCount: cachedUsageData.totalCount,
+    usageLimit: cachedUsageData.usageLimit ?? 9000,
+  };
 }

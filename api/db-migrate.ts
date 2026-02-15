@@ -7,6 +7,7 @@
  *   - land_price_yearly:  年度別価格（価格と変動率のみ）
  *   - batch_progress:     バッチ処理進捗
  *   - api_freshness_state: API鮮度管理（シングルトン）
+ *   - api_usage:           Google API使用量管理（月次リセット）
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -122,6 +123,28 @@ export default async function handler(
     `;
 
     // ──────────────────────────────────────────────
+    // api_usage: Google API使用量管理（月次リセット）
+    // ──────────────────────────────────────────────
+    await sql`
+      CREATE TABLE IF NOT EXISTS api_usage (
+        id INTEGER PRIMARY KEY DEFAULT 1,
+        monthly_count INTEGER NOT NULL DEFAULT 0,
+        total_count INTEGER NOT NULL DEFAULT 0,
+        current_month TEXT NOT NULL DEFAULT to_char(CURRENT_DATE, 'YYYY-MM'),
+        usage_limit INTEGER NOT NULL DEFAULT 9000,
+        updated_at TIMESTAMP DEFAULT NOW(),
+        CHECK (id = 1)
+      );
+    `;
+
+    // 初期行を挿入
+    await sql`
+      INSERT INTO api_usage (id, monthly_count, total_count, current_month, usage_limit)
+      VALUES (1, 0, 0, to_char(CURRENT_DATE, 'YYYY-MM'), 9000)
+      ON CONFLICT (id) DO NOTHING;
+    `;
+
+    // ──────────────────────────────────────────────
     // インデックス
     // ──────────────────────────────────────────────
     await sql`
@@ -203,7 +226,7 @@ export default async function handler(
     res.status(200).json({
       message: 'Migration completed successfully',
       migrated,
-      tables: ['land_price_masters', 'land_price_yearly', 'batch_progress', 'api_freshness_state'],
+      tables: ['land_price_masters', 'land_price_yearly', 'batch_progress', 'api_freshness_state', 'api_usage'],
     });
   } catch (error) {
     console.error('Migration error:', error);

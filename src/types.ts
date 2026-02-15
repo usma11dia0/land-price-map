@@ -27,6 +27,8 @@ export interface UsageData {
   date: string;
   /** 累計使用回数（全期間） */
   totalCount?: number;
+  /** 月間使用量上限 */
+  usageLimit?: number;
 }
 
 /**
