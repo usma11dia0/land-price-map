@@ -127,29 +127,44 @@ function cleanRatioValue(value: string | undefined): string {
 }
 
 /**
- * サーバーから受け取った最新年度（プローブ機能で検出）
- * 初期値は前年（安全なデフォルト）
+ * サーバーから受け取った最新年度（地価公示）
+ * 初期値: 地価公示は毎年3月公表のため当年を使用
  */
-let _serverLatestYear: number = new Date().getFullYear();
+let _serverLatestYearKoji: number = new Date().getFullYear();
+
+/**
+ * サーバーから受け取った最新年度（都道府県地価調査）
+ * 初期値: 都道府県地価調査は毎年7月頃公表のため前年を安全なデフォルトとする
+ */
+let _serverLatestYearChosa: number = new Date().getFullYear() - 1;
 
 /**
  * サーバーから受け取った最新年度を更新
  */
-function updateServerLatestYear(year: number): void {
-  if (year > _serverLatestYear) {
-    _serverLatestYear = year;
-    console.log(`[landPrice] Latest year updated to ${year}`);
+function updateServerLatestYears(data: { latestYearKoji?: number; latestYearChosa?: number }): void {
+  if (data.latestYearKoji && data.latestYearKoji > _serverLatestYearKoji) {
+    _serverLatestYearKoji = data.latestYearKoji;
+    console.log(`[landPrice] Latest koji year updated to ${_serverLatestYearKoji}`);
+  }
+  if (data.latestYearChosa && data.latestYearChosa > _serverLatestYearChosa) {
+    _serverLatestYearChosa = data.latestYearChosa;
+    console.log(`[landPrice] Latest chosa year updated to ${_serverLatestYearChosa}`);
   }
 }
 
 /**
- * 最新年を取得
- * サーバーのプローブ機能が検出した最新年度を使用する。
- * サーバーから未受信の場合は前年をデフォルトとする。
- * @returns 最新年（年度）
+ * 地価公示の最新年を取得（鑑定評価書リンク等に使用）
  */
 export function getLatestYear(): number {
-  return _serverLatestYear;
+  return _serverLatestYearKoji;
+}
+
+/**
+ * 地価区分に応じた最新年を取得
+ * @param classification 0: 地価公示, 1: 都道府県地価調査
+ */
+function getLatestYearForClassification(classification: PriceClassification): number {
+  return classification === 1 ? _serverLatestYearChosa : _serverLatestYearKoji;
 }
 
 /**
@@ -228,9 +243,7 @@ async function fetchTileData(
       const data: LandPriceApiResponse = await response.json();
 
       // サーバーから最新年度を受け取ったら更新
-      if (data.latestYear) {
-        updateServerLatestYear(data.latestYear);
-      }
+      updateServerLatestYears({ latestYearKoji: data.latestYearKoji, latestYearChosa: data.latestYearChosa });
 
       // キャッシュに保存
       tileCache.set(cacheKey, data);
@@ -339,7 +352,6 @@ export async function fetchLandPriceData(
   showChosa: boolean,
   onProgress?: (current: number, total: number) => void
 ): Promise<LandPricePoint[]> {
-  const latestYear = getLatestYear();
   const tiles = getTilesInBounds(bounds, API_ZOOM_LEVEL);
 
   // 取得する分類のリスト
@@ -363,7 +375,7 @@ export async function fetchLandPriceData(
   for (const tile of tiles) {
     for (const classification of classifications) {
       const promise = (async () => {
-        const data = await fetchTileData(tile, latestYear, classification);
+        const data = await fetchTileData(tile, getLatestYearForClassification(classification), classification);
         completedRequests++;
         onProgress?.(completedRequests, totalRequests);
 
@@ -406,12 +418,12 @@ const HISTORY_YEARS = 5;
 export async function fetchPointPriceHistory(
   point: LandPricePoint
 ): Promise<PriceHistory[]> {
-  const latestYear = getLatestYear();
+  const latestYear = getLatestYearForClassification(point.priceClassification);
   const tile = latLonToTile(point.lat, point.lon, API_ZOOM_LEVEL);
-  
+
   // 価格履歴を格納するMap
   const priceByYear = new Map<number, { price: number | null; changeRate: number | null }>();
-  
+
   // 最新年のデータを追加
   priceByYear.set(latestYear, {
     price: point.currentPrice,
@@ -420,7 +432,7 @@ export async function fetchPointPriceHistory(
 
   // 過去4年分を並列で取得
   const fetchPromises: Promise<void>[] = [];
-  
+
   for (let i = 1; i < HISTORY_YEARS; i++) {
     const year = latestYear - i;
     const promise = (async () => {
@@ -479,7 +491,7 @@ export async function fetchLandPricePointByCoords(
   priceClassification: PriceClassification,
   pointId?: string
 ): Promise<LandPricePoint | null> {
-  const latestYear = getLatestYear();
+  const latestYear = getLatestYearForClassification(priceClassification);
   const tile = latLonToTile(lat, lon, API_ZOOM_LEVEL);
 
   const data = await fetchTileData(tile, latestYear, priceClassification);

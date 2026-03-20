@@ -59,11 +59,13 @@ interface LandPriceFeature {
 interface LandPriceApiResponse {
   type: 'FeatureCollection';
   features: LandPriceFeature[];
-  latestYear?: number;
+  latestYearKoji?: number;
+  latestYearChosa?: number;
 }
 
 interface ProbeState {
-  latestYear: number;
+  latestYearKoji: number;
+  latestYearChosa: number;
   probeCount: number;
 }
 
@@ -82,11 +84,11 @@ async function getProbeState(): Promise<ProbeState> {
     if (rows.length === 0) {
       // 初期行がなければ作成
       await sql`
-        INSERT INTO api_freshness_state (id, latest_year, probe_count, probe_date)
-        VALUES (1, 2025, 0, CURRENT_DATE)
+        INSERT INTO api_freshness_state (id, latest_year, latest_year_chosa, probe_count, probe_date)
+        VALUES (1, 2026, 2025, 0, CURRENT_DATE)
         ON CONFLICT (id) DO NOTHING
       `;
-      return { latestYear: new Date().getFullYear(), probeCount: 0 };
+      return { latestYearKoji: new Date().getFullYear(), latestYearChosa: new Date().getFullYear() - 1, probeCount: 0 };
     }
 
     const row = rows[0];
@@ -102,13 +104,25 @@ async function getProbeState(): Promise<ProbeState> {
         SET probe_count = 0, probe_date = CURRENT_DATE, updated_at = NOW()
         WHERE id = 1
       `;
-      return { latestYear: Number(row.latest_year), probeCount: 0 };
+      return {
+        latestYearKoji: Number(row.latest_year),
+        latestYearChosa: Number(row.latest_year_chosa ?? row.latest_year - 1),
+        probeCount: 0,
+      };
     }
 
-    return { latestYear: Number(row.latest_year), probeCount: Number(row.probe_count) };
+    return {
+      latestYearKoji: Number(row.latest_year),
+      latestYearChosa: Number(row.latest_year_chosa ?? row.latest_year - 1),
+      probeCount: Number(row.probe_count),
+    };
   } catch {
     // DB未接続時のフォールバック
-    return { latestYear: new Date().getFullYear(), probeCount: MAX_DAILY_PROBES };
+    return {
+      latestYearKoji: new Date().getFullYear(),
+      latestYearChosa: new Date().getFullYear() - 1,
+      probeCount: MAX_DAILY_PROBES,
+    };
   }
 }
 
@@ -129,14 +143,19 @@ async function incrementProbeCount(): Promise<void> {
 }
 
 /**
- * APIレスポンスから最新年度を検出し、必要に応じて更新
+ * APIレスポンスから最新年度を検出し、必要に応じてDB更新
+ * @param features APIレスポンスのフィーチャー
+ * @param currentYear 現在記録している最新年度
+ * @param classification 地価区分（0: 地価公示, 1: 都道府県地価調査）
+ * @returns 検出した最新年度
  */
 async function detectAndUpdateLatestYear(
   features: LandPriceFeature[],
-  currentLatestYear: number
+  currentYear: number,
+  classification: number | undefined
 ): Promise<number> {
   // レスポンス内の最大 target_year を検出
-  let maxYear = currentLatestYear;
+  let maxYear = currentYear;
   for (const feature of features) {
     const yearName = feature.properties.target_year_name_ja as string | undefined;
     if (yearName) {
@@ -152,14 +171,24 @@ async function detectAndUpdateLatestYear(
     }
   }
 
-  if (maxYear > currentLatestYear) {
+  if (maxYear > currentYear) {
     try {
       const sql = getSQL();
-      await sql`
-        UPDATE api_freshness_state
-        SET latest_year = ${maxYear}, updated_at = NOW()
-        WHERE id = 1
-      `;
+      if (classification === 1) {
+        // 都道府県地価調査
+        await sql`
+          UPDATE api_freshness_state
+          SET latest_year_chosa = ${maxYear}, updated_at = NOW()
+          WHERE id = 1
+        `;
+      } else {
+        // 地価公示（classification=0 または undefined）
+        await sql`
+          UPDATE api_freshness_state
+          SET latest_year = ${maxYear}, updated_at = NOW()
+          WHERE id = 1
+        `;
+      }
     } catch {
       // 更新失敗は無視
     }
@@ -250,6 +279,11 @@ export default async function handler(
     const probeState = await getProbeState();
     const isProbe = probeState.probeCount < MAX_DAILY_PROBES;
 
+    // 地価区分に応じた最新年度を選択
+    const currentLatestYear = classification === 1
+      ? probeState.latestYearChosa
+      : probeState.latestYearKoji;
+
     if (isProbe) {
       // ──────────────────────────────────
       // プローブモード: APIを直接叩く
@@ -259,18 +293,19 @@ export default async function handler(
       const apiData = await fetchFromAPI(tileZ, tileX, tileY, yearNum, classification);
 
       if (apiData && apiData.features.length > 0) {
-        // 最新年度を検出
-        const detectedYear = await detectAndUpdateLatestYear(apiData.features, probeState.latestYear);
+        // 最新年度を検出（区分別にDBを更新）
+        const detectedYear = await detectAndUpdateLatestYear(apiData.features, currentLatestYear, classification);
 
         // DBに保存（非同期、レスポンスをブロックしない）
         saveToDB(apiData.features, tileZ, tileX, tileY, yearNum, classification).catch((err) => {
           console.error('Failed to save to DB:', err);
         });
 
-        // APIデータをそのままクライアントに返却 + latestYear を付与
+        // APIデータをそのままクライアントに返却
         const response: LandPriceApiResponse = {
           ...apiData,
-          latestYear: detectedYear,
+          latestYearKoji: classification === 1 ? probeState.latestYearKoji : detectedYear,
+          latestYearChosa: classification === 1 ? detectedYear : probeState.latestYearChosa,
         };
         res.status(200).json(response);
         return;
@@ -280,7 +315,8 @@ export default async function handler(
       res.status(200).json({
         type: 'FeatureCollection',
         features: [],
-        latestYear: probeState.latestYear,
+        latestYearKoji: probeState.latestYearKoji,
+        latestYearChosa: probeState.latestYearChosa,
       });
       return;
     }
@@ -290,7 +326,8 @@ export default async function handler(
     // ──────────────────────────────────
     const dbData = await fetchFromDB(tileZ, tileX, tileY, yearNum, classification);
     if (dbData && dbData.features.length > 0) {
-      dbData.latestYear = probeState.latestYear;
+      dbData.latestYearKoji = probeState.latestYearKoji;
+      dbData.latestYearChosa = probeState.latestYearChosa;
       res.status(200).json(dbData);
       return;
     }
@@ -301,7 +338,8 @@ export default async function handler(
       res.status(200).json({
         type: 'FeatureCollection',
         features: [],
-        latestYear: probeState.latestYear,
+        latestYearKoji: probeState.latestYearKoji,
+        latestYearChosa: probeState.latestYearChosa,
       });
       return;
     }
@@ -313,7 +351,8 @@ export default async function handler(
 
     res.status(200).json({
       ...apiData,
-      latestYear: probeState.latestYear,
+      latestYearKoji: probeState.latestYearKoji,
+      latestYearChosa: probeState.latestYearChosa,
     });
   } catch (error) {
     console.error('Land Price API error:', error);

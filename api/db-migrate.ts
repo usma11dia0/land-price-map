@@ -108,6 +108,7 @@ export default async function handler(
       CREATE TABLE IF NOT EXISTS api_freshness_state (
         id INTEGER PRIMARY KEY DEFAULT 1,
         latest_year INTEGER NOT NULL DEFAULT 2026,
+        latest_year_chosa INTEGER NOT NULL DEFAULT 2025,
         probe_count INTEGER NOT NULL DEFAULT 0,
         probe_date DATE NOT NULL DEFAULT CURRENT_DATE,
         updated_at TIMESTAMP DEFAULT NOW(),
@@ -115,12 +116,19 @@ export default async function handler(
       );
     `;
 
-    // 初期行を挿入（既存行がある場合はlatest_yearを2026以上に更新）
+    // 既存テーブルへのカラム追加（マイグレーション）
     await sql`
-      INSERT INTO api_freshness_state (id, latest_year, probe_count, probe_date)
-      VALUES (1, 2026, 0, CURRENT_DATE)
+      ALTER TABLE api_freshness_state
+        ADD COLUMN IF NOT EXISTS latest_year_chosa INTEGER NOT NULL DEFAULT 2025;
+    `;
+
+    // 初期行を挿入（既存行がある場合はlatest_yearを2026以上、latest_year_chosaを2025以上に更新）
+    await sql`
+      INSERT INTO api_freshness_state (id, latest_year, latest_year_chosa, probe_count, probe_date)
+      VALUES (1, 2026, 2025, 0, CURRENT_DATE)
       ON CONFLICT (id) DO UPDATE SET
         latest_year = GREATEST(api_freshness_state.latest_year, 2026),
+        latest_year_chosa = GREATEST(api_freshness_state.latest_year_chosa, 2025),
         updated_at = NOW();
     `;
 

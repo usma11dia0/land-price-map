@@ -97,8 +97,10 @@ export interface LandPriceFeature {
 export interface LandPriceApiResponse {
   type: 'FeatureCollection';
   features: LandPriceFeature[];
-  /** サーバーが検出した最新データ年度（プローブ機能による） */
-  latestYear?: number;
+  /** サーバーが検出した地価公示の最新年度 */
+  latestYearKoji?: number;
+  /** サーバーが検出した都道府県地価調査の最新年度 */
+  latestYearChosa?: number;
 }
 
 /**
