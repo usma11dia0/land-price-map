@@ -288,7 +288,9 @@ function featureToLandPricePoint(
     locationNumber: props.location_number_ja || '-',
     residenceDisplay: props.residence_display_name_ja || '-',
     prefectureName: props.prefecture_name_ja || '-',
+    prefectureCode: props.prefecture_code || '',
     cityName: `${props.city_county_name_ja || ''}${props.ward_town_village_name_ja || ''}`,
+    cityCode: props.city_code || '',
 
     // 価格情報
     currentPrice,

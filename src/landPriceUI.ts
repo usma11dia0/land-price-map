@@ -753,7 +753,7 @@ function updatePriceHistoryTableInPanel(panel: HTMLElement, history: PriceHistor
  * @returns 鑑定評価書URL（生成できない場合はnull）
  */
 function generateAppraisalUrl(point: LandPricePoint): string | null {
-  // 標準地番号から数字部分を抽出（例: "中央5-28" → "5-28"）
+  // 標準地番号から数字部分を抽出（例: "中央5-28" → "0528"、"5-28" → "0528"）
   const lotMatch = point.standardLotNumber.match(/(\d+)-(\d+)/);
   if (!lotMatch) return null;
 
@@ -761,47 +761,14 @@ function generateAppraisalUrl(point: LandPricePoint): string | null {
   const pointNum = lotMatch[2].padStart(2, '0');    // 地点番号（2桁）
   const lotNumber = categoryNum + pointNum;         // "0528"
 
-  // 都道府県コード（東京都 = 13）- cityNameから推測は難しいので、既知のコードを使用
-  // ここでは簡易的に、東京23区を想定
-  const prefCode = '13';
-  
-  // 市区町村コード（下3桁）- point.idから取得できないため、簡易的に処理
-  // 中央区 = 13102 → 102
-  // 実際のcity_codeがAPIレスポンスに含まれているはずなので、それを使用
-  // 暫定的に、地名から推測
-  const cityCodeMap: { [key: string]: string } = {
-    '中央': '102',
-    '千代田': '101',
-    '港': '103',
-    '新宿': '104',
-    '文京': '105',
-    '台東': '106',
-    '墨田': '107',
-    '江東': '108',
-    '品川': '109',
-    '目黒': '110',
-    '大田': '111',
-    '世田谷': '112',
-    '渋谷': '113',
-    '中野': '114',
-    '杉並': '115',
-    '豊島': '116',
-    '北': '117',
-    '荒川': '118',
-    '板橋': '119',
-    '練馬': '120',
-    '足立': '121',
-    '葛飾': '122',
-    '江戸川': '123',
-  };
+  // 都道府県コード（APIから直接取得、2桁にゼロ埋め）
+  if (!point.prefectureCode) return null;
+  const prefCode = point.prefectureCode.padStart(2, '0');
 
-  // 地名を抽出（例: "中央5-28" → "中央"）
-  const placeMatch = point.standardLotNumber.match(/^([^\d]+)/);
-  if (!placeMatch) return null;
-  
-  const placeName = placeMatch[1];
-  const cityCode = cityCodeMap[placeName];
-  if (!cityCode) return null;
+  // 市区町村コード（APIから直接取得、下3桁を使用）
+  // city_code は5桁（例: "13102"）→ 下3桁 "102" を使用
+  if (!point.cityCode) return null;
+  const cityCode = point.cityCode.slice(-3);
 
   // 年度（サーバーから取得した最新の地価公示年度）
   const appraisalYear = getLatestYear();

@@ -125,7 +125,9 @@ export interface LandPricePoint {
   locationNumber: string;
   residenceDisplay: string;
   prefectureName: string;
+  prefectureCode: string;
   cityName: string;
+  cityCode: string;
 
   // 価格情報
   currentPrice: number | null;
