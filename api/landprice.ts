@@ -484,7 +484,8 @@ async function saveToDB(
       }
     }
 
-    const changeRate = props.year_on_year_change_rate as number | null ?? null;
+    const rawChangeRate = props.year_on_year_change_rate;
+    const changeRate = typeof rawChangeRate === 'number' && !isNaN(rawChangeRate) ? rawChangeRate : null;
 
     try {
       // 1. マスターテーブルに UPSERT
