@@ -4,11 +4,12 @@
  */
 
 import type { LandPricePoint, LandPriceControlState, PriceHistory } from './landPriceTypes.js';
-import { 
-  fetchLandPriceData, 
-  calculateSearchBounds, 
+import {
+  fetchLandPriceData,
+  calculateSearchBounds,
   fetchPointPriceHistory,
   MAX_SEARCH_RESULTS,
+  getLatestYear,
 } from './landPrice.js';
 import { getMap, getMapCenter } from './map.js';
 import { openRegisterDialogFromLandPrice } from './savedLocationUI.js';
@@ -802,11 +803,8 @@ function generateAppraisalUrl(point: LandPricePoint): string | null {
   const cityCode = cityCodeMap[placeName];
   if (!cityCode) return null;
 
-  // 年度（最新の地価公示年度）
-  // 地価公示は1月1日時点、3月に公表される
-  // 例: 2026年1月現在 → 令和7年（2025年）の地価公示が最新
-  const currentYear = new Date().getFullYear();
-  const appraisalYear = currentYear - 1;
+  // 年度（サーバーから取得した最新の地価公示年度）
+  const appraisalYear = getLatestYear();
 
   // URL生成
   const fileName = `${appraisalYear}${prefCode}${cityCode}${lotNumber}`;

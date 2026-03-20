@@ -148,7 +148,7 @@ function updateServerLatestYear(year: number): void {
  * サーバーから未受信の場合は前年をデフォルトとする。
  * @returns 最新年（年度）
  */
-function getLatestYear(): number {
+export function getLatestYear(): number {
   return _serverLatestYear;
 }
 
