@@ -86,7 +86,7 @@ async function getProbeState(): Promise<ProbeState> {
         VALUES (1, 2025, 0, CURRENT_DATE)
         ON CONFLICT (id) DO NOTHING
       `;
-      return { latestYear: 2025, probeCount: 0 };
+      return { latestYear: new Date().getFullYear(), probeCount: 0 };
     }
 
     const row = rows[0];
@@ -108,7 +108,7 @@ async function getProbeState(): Promise<ProbeState> {
     return { latestYear: Number(row.latest_year), probeCount: Number(row.probe_count) };
   } catch {
     // DB未接続時のフォールバック
-    return { latestYear: new Date().getFullYear() - 1, probeCount: MAX_DAILY_PROBES };
+    return { latestYear: new Date().getFullYear(), probeCount: MAX_DAILY_PROBES };
   }
 }
 
