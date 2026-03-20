@@ -130,7 +130,7 @@ function cleanRatioValue(value: string | undefined): string {
  * サーバーから受け取った最新年度（プローブ機能で検出）
  * 初期値は前年（安全なデフォルト）
  */
-let _serverLatestYear: number = new Date().getFullYear() - 1;
+let _serverLatestYear: number = new Date().getFullYear();
 
 /**
  * サーバーから受け取った最新年度を更新
@@ -148,7 +148,7 @@ function updateServerLatestYear(year: number): void {
  * サーバーから未受信の場合は前年をデフォルトとする。
  * @returns 最新年（年度）
  */
-function getLatestYear(): number {
+export function getLatestYear(): number {
   return _serverLatestYear;
 }
 
@@ -288,7 +288,9 @@ function featureToLandPricePoint(
     locationNumber: props.location_number_ja || '-',
     residenceDisplay: props.residence_display_name_ja || '-',
     prefectureName: props.prefecture_name_ja || '-',
+    prefectureCode: props.prefecture_code || '',
     cityName: `${props.city_county_name_ja || ''}${props.ward_town_village_name_ja || ''}`,
+    cityCode: props.city_code || '',
 
     // 価格情報
     currentPrice,
@@ -303,7 +305,7 @@ function featureToLandPricePoint(
     surroundingUsageStatus: props.current_usage_status_of_surrounding_land_name_ja || '-',
 
     // 道路情報
-    frontRoadWidth: props.front_road_width ?? null,
+    frontRoadWidth: props.front_road_width != null ? (props.front_road_width as number) / 10 : null,
     frontRoadAzimuth: props.front_road_azimuth_name_ja || '-',
     frontRoadPavement: props.front_road_pavement_condition || '-',
     sideRoadAzimuth: props.side_road_azimuth_name_ja || '-',

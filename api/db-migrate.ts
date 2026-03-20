@@ -107,7 +107,7 @@ export default async function handler(
     await sql`
       CREATE TABLE IF NOT EXISTS api_freshness_state (
         id INTEGER PRIMARY KEY DEFAULT 1,
-        latest_year INTEGER NOT NULL DEFAULT 2025,
+        latest_year INTEGER NOT NULL DEFAULT 2026,
         probe_count INTEGER NOT NULL DEFAULT 0,
         probe_date DATE NOT NULL DEFAULT CURRENT_DATE,
         updated_at TIMESTAMP DEFAULT NOW(),
@@ -115,11 +115,13 @@ export default async function handler(
       );
     `;
 
-    // 初期行を挿入
+    // 初期行を挿入（既存行がある場合はlatest_yearを2026以上に更新）
     await sql`
       INSERT INTO api_freshness_state (id, latest_year, probe_count, probe_date)
-      VALUES (1, 2025, 0, CURRENT_DATE)
-      ON CONFLICT (id) DO NOTHING;
+      VALUES (1, 2026, 0, CURRENT_DATE)
+      ON CONFLICT (id) DO UPDATE SET
+        latest_year = GREATEST(api_freshness_state.latest_year, 2026),
+        updated_at = NOW();
     `;
 
     // ──────────────────────────────────────────────
