@@ -753,12 +753,13 @@ function updatePriceHistoryTableInPanel(panel: HTMLElement, history: PriceHistor
  * @returns 鑑定評価書URL（生成できない場合はnull）
  */
 function generateAppraisalUrl(point: LandPricePoint): string | null {
-  // 標準地番号から数字部分を抽出（例: "中央5-28" → "0528"、"5-28" → "0528"）
-  const lotMatch = point.standardLotNumber.match(/(\d+)-(\d+)/);
+  // 標準地番号から数字部分を抽出
+  // 例: "中央5-28" → "0528"、"5-28" → "0528"、"墨田-5" → "0005"（カテゴリなし→"00"扱い）
+  const lotMatch = point.standardLotNumber.match(/(\d*)-(\d+)/);
   if (!lotMatch) return null;
 
-  const categoryNum = lotMatch[1].padStart(2, '0'); // 用途番号（2桁）
-  const pointNum = lotMatch[2].padStart(2, '0');    // 地点番号（2桁）
+  const categoryNum = (lotMatch[1] || '0').padStart(2, '0'); // 用途番号（2桁、なければ0）
+  const pointNum = lotMatch[2].padStart(2, '0');              // 地点番号（2桁）
   const lotNumber = categoryNum + pointNum;         // "0528"
 
   // 都道府県コード（APIから直接取得、2桁にゼロ埋め）
