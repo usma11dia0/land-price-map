@@ -411,9 +411,17 @@ async function fetchFromDB(
       return null;
     }
 
-    // yearlyに該当年度のデータがない行は除外
+    // yearlyに該当年度のデータがない行を除外
     const featuresWithData = rows.filter((row: Record<string, any>) => row.price !== null);
+
+    // 全ポイントにデータがない場合 → APIフォールバックへ
     if (featuresWithData.length === 0) {
+      return null;
+    }
+
+    // タイル内に price=null のポイントが混在する場合（部分的なキャッシュ）→ APIフォールバックへ
+    // これにより、DBに登録済みだが当年度データが未取得のポイントも漏れなく取得できる
+    if (featuresWithData.length < rows.length) {
       return null;
     }
 
