@@ -20,7 +20,10 @@
       "Bash(wc:*)",
       "Bash(npm install:*)",
       "Bash(npx tsc:*)",
-      "Bash(npm uninstall @vercel/postgres)"
+      "Bash(npm uninstall @vercel/postgres)",
+      "Bash(vercel dev)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)"
     ]
   }
 }
